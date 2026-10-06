@@ -7,6 +7,7 @@ This is a dependency-free static browser port of SOTAtoADIF. `dist/` contains ed
 - `index.html` and `style.css`: page structure and responsive styling.
 - `app.js`: file selection, summit lookup controls, previews, and downloads.
 - `converter.js`: CSV parsing, validation, summit API requests, and ADIF generation.
+- `summit-cache.js`: 24-hour local summit cache and concurrent lookup deduplication.
 - `modes.js`: ADIF mode and submode mappings inherited from the Python project.
 - `tests/converter.test.js`: conversion tests.
 
