@@ -14,3 +14,5 @@
 [data-theme=dark] .features,[data-theme=dark] .step,[data-theme=dark] .footnote,[data-theme=dark] .drop small{color:#a1b6ab}
 [data-theme=dark] #warnings{color:#e7b780}
 @media(max-width:480px){.header-controls .badge{display:none}}
+
+.locator-field{display:flex;flex-direction:column;gap:5px;width:180px;max-width:100%}.locator-error{font-size:12px;line-height:1.5;color:#854317}.summit{align-items:flex-start;flex-wrap:wrap}.summit input[aria-invalid=true]{border-color:#854317}[data-theme=dark] .locator-error{color:#e7b780}[data-theme=dark] .summit input[aria-invalid=true]{border-color:#e7b780}
