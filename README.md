@@ -1,6 +1,6 @@
 # SOTAtoADIF browser edition
 
-A dependency-free, static webapp port of [G5JDA/SOTAtoADIF](https://github.com/G5JDA/SOTAtoADIF) v1.0.0. Copyright (c) 2024 Jack G5JDA. GPL-3.0-or-later; see dist/LICENSE.
+A dependency-free, static webapp port of [G5JDA/SOTAtoADIF](https://github.com/G5JDA/SOTAtoADIF) v1.0.0. Copyright (c) 2024 Jack G5JDA. AGPL-3.0-or-later; see dist/LICENSE.
 
 Serve `dist/` with any static web server (e.g. `python3 -m http.server 8000 --bind 127.0.0.1 --directory dist`). Open http://localhost:8000. Run tests with `node --test tests/*.test.js`.
 
@@ -11,3 +11,7 @@ Supports the original implemented activator workflow, SOTA V2 CSV, UTC times, or
 ## Hosting preference
 
 Run this project locally only. Do not publish or deploy it to ChatGPT Sites. The previous Site identity in .openai/hosting.json is retained solely to identify the existing hosted copy for removal; it does not authorize deployment.
+
+## License
+
+This browser port is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version. See LICENSE (also served as dist/LICENSE). Original project attribution is retained; the upstream Python repository remains under its own GPL-3.0-or-later license.

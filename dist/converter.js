@@ -1,4 +1,5 @@
-// Copyright (c) 2024 Jack G5JDA. Browser port licensed GPL-3.0-or-later.
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2024 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
 import {modes} from './modes.js';
 export function parseCSV(text) {
   text=text.replace(/^\uFEFF/,'');
@@ -35,5 +36,5 @@ export function makeOutputs(qsos,summits,now=new Date()){const groups=new Map(),
     if(!groups.has(q.station))groups.set(q.station,[]);groups.get(q.station).push(record);
   }
   const timestamp=now.toISOString().slice(0,19),stamp=timestamp.replace(/[-:]/g,'').replace('T',' ');
-  const files=[...groups].map(([station,records])=>({station,count:records.length,name:`${station.replace(/[^A-Z0-9-]/g,'-')}_SOTAtoADIF_${timestamp.replace('T','_').replace(/:/g,'-')}.adi`,text:`# SOTAtoADIF browser edition. Copyright Jack G5JDA. GPL-3.0-or-later.\n`+field('ADIF_VER','3.1.4')+'\n'+field('PROGRAMID','SOTAtoADIF')+'\n'+field('PROGRAMVERSION','web-1.0.0')+'\n'+field('CREATED_TIMESTAMP',stamp)+'\n<EOH>\n'+records.join('')}));return {files,skipped};
+  const files=[...groups].map(([station,records])=>({station,count:records.length,name:`${station.replace(/[^A-Z0-9-]/g,'-')}_SOTAtoADIF_${timestamp.replace('T','_').replace(/:/g,'-')}.adi`,text:`# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.\n`+field('ADIF_VER','3.1.4')+'\n'+field('PROGRAMID','SOTAtoADIF')+'\n'+field('PROGRAMVERSION','web-1.0.0')+'\n'+field('CREATED_TIMESTAMP',stamp)+'\n<EOH>\n'+records.join('')}));return {files,skipped};
 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import {readLog,lookupSummit,makeOutputs,validLocator} from './converter.js';
 const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),loadId=0;
 // Synthetic demo identifiers deliberately do not resemble licensed callsigns.
