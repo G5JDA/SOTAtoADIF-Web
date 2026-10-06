@@ -24,3 +24,22 @@ $('convert').onclick=async()=>{if(!loaded)return;const id=loadId;const current=l
   const count=files.reduce((n,f)=>n+f.count,0);$('stats').replaceChildren(...[[count,'QSOs exported'],[files.length,'ADIF files'],[current.qsos.length-count,'QSOs excluded']].map(([n,label])=>{const div=document.createElement('div');const strong=document.createElement('strong');strong.textContent=n;const span=document.createElement('span');span.textContent=label;div.append(strong,span);return div;}));
   $('downloads').replaceChildren(...files.map(file=>{const div=document.createElement('div');div.className='download';const text=document.createElement('div');const title=document.createElement('strong');title.textContent=file.station;const small=document.createElement('small');small.textContent=`${file.count} QSOs · .adi`;text.append(title,small);const button=document.createElement('button');button.textContent='Download ↓';button.onclick=()=>{const url=URL.createObjectURL(new Blob([file.text],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};div.append(text,button);return div;}));$('preview').textContent=files.map(f=>f.text).join('\n');$('status').textContent=files.length?`${count} QSOs ready. Review warnings before importing.`:'No QSOs exported. Add valid summit locators and try again.';
 }catch(e){$('status').textContent=e.message;}finally{$('convert').disabled=!loaded?.qsos.length;$('file').disabled=false;$('demo').disabled=false;}};
+
+const themeToggle=$('themeToggle');
+const systemTheme=matchMedia('(prefers-color-scheme: dark)');
+let chosenTheme=null;
+try{chosenTheme=localStorage.getItem('sotatoadif-theme');}catch{}
+function applyTheme(theme){
+  document.documentElement.dataset.theme=theme;
+  themeToggle.setAttribute('aria-pressed',String(theme==='dark'));
+  themeToggle.textContent=theme==='dark'?'Light mode':'Dark mode';
+}
+applyTheme(document.documentElement.dataset.theme||'light');
+themeToggle.addEventListener('click',()=>{
+  chosenTheme=document.documentElement.dataset.theme==='dark'?'light':'dark';
+  applyTheme(chosenTheme);
+  try{localStorage.setItem('sotatoadif-theme',chosenTheme);}catch{}
+});
+systemTheme.addEventListener('change',event=>{
+  if(chosenTheme!=='dark'&&chosenTheme!=='light')applyTheme(event.matches?'dark':'light');
+});
