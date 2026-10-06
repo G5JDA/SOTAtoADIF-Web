@@ -5,7 +5,7 @@
 This is a dependency-free static browser port of SOTAtoADIF. `dist/` contains editable source files, not generated build output:
 
 - `index.html` and `style.css`: page structure and responsive styling.
-- `app.js`: file selection, synthetic demos, summit lookup controls, previews, and downloads.
+- `app.js`: file selection, summit lookup controls, previews, and downloads.
 - `converter.js`: CSV parsing, validation, summit API requests, and ADIF generation.
 - `modes.js`: ADIF mode and submode mappings inherited from the Python project.
 - `tests/converter.test.js`: conversion tests.
@@ -40,4 +40,4 @@ Use focused commits with concise imperative subjects, following the repository h
 
 ## Privacy & Local-Only Operation
 
-Keep CSV processing and ADIF generation in the browser. Send only summit references to the SOTA API; never upload logs or add telemetry. Use clearly synthetic demo identifiers. Do not publish or deploy this repository without a new explicit user request.
+Keep CSV processing and ADIF generation in the browser. Send only summit references to the SOTA API; never upload logs or add telemetry. Do not publish or deploy this repository without a new explicit user request.
