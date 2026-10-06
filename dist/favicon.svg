@@ -1,0 +1,5 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <rect width="40" height="40" rx="9" fill="#1d6350"/>
+  <path d="M5 30 17 10l8 13 5-8 6 15M12 30l5-8 5 8" fill="none" stroke="#f4f6f2" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
