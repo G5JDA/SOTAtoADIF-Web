@@ -15,3 +15,7 @@ Run this project locally only. Do not publish or deploy it to ChatGPT Sites. The
 ## License
 
 This browser port is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version. See LICENSE (also served as dist/LICENSE). Original project attribution is retained; the upstream Python repository remains under its own GPL-3.0-or-later license.
+
+## Home-screen installation
+
+The manifest uses relative URLs and includes Android and Apple home-screen icons. Open the app on a phone-accessible URL and use the browser’s installation or Add to Home Screen option (on iOS, Share → Add to Home Screen). Installation availability depends on the browser and secure-origin requirements. No service worker or offline app-shell caching is provided.
