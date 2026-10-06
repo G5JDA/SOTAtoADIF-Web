@@ -37,3 +37,15 @@ themeToggle.addEventListener('click',()=>{
 systemTheme.addEventListener('change',event=>{
   if(chosenTheme!=='dark'&&chosenTheme!=='light')applyTheme(event.matches?'dark':'light');
 });
+
+const contrastToggle=$('contrastToggle');
+function applyContrast(high){
+  document.documentElement.dataset.contrast=high?'high':'normal';
+  contrastToggle.setAttribute('aria-pressed',String(high));
+}
+applyContrast(document.documentElement.dataset.contrast==='high');
+contrastToggle.addEventListener('click',()=>{
+  const high=document.documentElement.dataset.contrast!=='high';
+  applyContrast(high);
+  try{localStorage.setItem('sotatoadif-contrast',high?'high':'normal');}catch{}
+});

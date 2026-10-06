@@ -28,3 +28,16 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,p
 summary{min-height:28px;padding:5px 0}footer a{display:inline-flex;align-items:center;min-height:28px}button{min-height:32px}.check{min-height:32px}.primary[aria-disabled=true]{opacity:.65;cursor:wait}
 .section-title,.features,.stats,.header-controls{flex-wrap:wrap}.section-title h2{min-width:0}.workspace>*,.download>*{min-width:0}.drop strong,.summit span,.download strong{overflow-wrap:anywhere}.download{flex-wrap:wrap}.intro p br{display:none}.brand{flex-shrink:0}
 @media(max-width:480px){header{flex-wrap:wrap;gap:12px;padding:18px}main{padding-left:16px;padding-right:16px}.card{padding:16px}h1{font-size:36px;letter-spacing:-1px}.tag{margin-left:0}.features{line-height:1.7}.locator-field{width:100%}.summit input{width:100%}.stats{gap:18px}}
+
+/* High contrast works independently of the light/dark theme preference. */
+:root[data-contrast=high]{--ink:#000;--muted:#222;--line:#555;--green:#003b25;--surface:#fff;--hc-bg:#fff;--hc-panel:#fff;--hc-text:#000;--hc-secondary:#222;--hc-border:#555;--hc-action:#003b25;--hc-action-text:#fff;--hc-focus:#000;--hc-error:#650000}
+:root[data-contrast=high][data-theme=dark]{--ink:#fff;--muted:#eee;--line:#bbb;--green:#aaffcc;--surface:#000;--hc-bg:#000;--hc-panel:#000;--hc-text:#fff;--hc-secondary:#eee;--hc-border:#bbb;--hc-action:#aaffcc;--hc-action-text:#000;--hc-focus:#ffff00;--hc-error:#ffcccc}
+[data-contrast=high] body{background:var(--hc-bg);color:var(--hc-text)}
+[data-contrast=high] .card,[data-contrast=high] .drop,[data-contrast=high] .drop.drag,[data-contrast=high] .download,[data-contrast=high] pre,[data-contrast=high] .tag,[data-contrast=high] .theme-toggle,[data-contrast=high] .summit input,[data-contrast=high] .download button{background:var(--hc-panel);color:var(--hc-text);border-color:var(--hc-border)}
+[data-contrast=high] h1 span,[data-contrast=high] .brand span,[data-contrast=high] .step,[data-contrast=high] .features,[data-contrast=high] .footnote,[data-contrast=high] .drop small,[data-contrast=high] .mountains{color:var(--hc-secondary)}
+[data-contrast=high] .primary{background:var(--hc-action);color:var(--hc-action-text)}
+[data-contrast=high] .primary[aria-disabled=true]{opacity:1;border:2px dashed var(--hc-border)}
+[data-contrast=high] #warnings,[data-contrast=high] .locator-error{color:var(--hc-error)}
+[data-contrast=high] .summit input[aria-invalid=true]{border-color:var(--hc-error)}
+[data-contrast=high] button:focus-visible,[data-contrast=high] a:focus-visible,[data-contrast=high] summary:focus-visible,[data-contrast=high] input:focus-visible,[data-contrast=high] pre:focus-visible,[data-contrast=high] #warnings:focus-visible,[data-contrast=high] .drop:focus-within{outline-color:var(--hc-focus)}
+[data-contrast=high] a{text-decoration:underline}[data-contrast=high] .brand{text-decoration:none}
