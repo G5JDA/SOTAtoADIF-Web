@@ -57,3 +57,9 @@ select:focus-visible{outline:3px solid var(--green);outline-offset:3px}
 [data-reading-custom=true] button,[data-reading-custom=true] input,[data-reading-custom=true] select{border:1px solid var(--reading-text)}
 .reading-controls label{flex-wrap:wrap;max-width:100%}.reading-controls select{max-width:100%}input[type=file]{min-height:44px}
 .brand{min-height:44px;min-width:44px}
+/* Scale the intro consistently with the reading text-size preference. */
+.intro .eyebrow{font-size:calc(10px * var(--reading-scale))}
+.intro h1{font-size:calc(54px * var(--reading-scale));overflow-wrap:anywhere}
+.intro p{font-size:calc(15px * var(--reading-scale))}
+@media(max-width:750px){.intro h1{font-size:calc(42px * var(--reading-scale))}}
+@media(max-width:480px){.intro h1{font-size:calc(36px * var(--reading-scale))}}
