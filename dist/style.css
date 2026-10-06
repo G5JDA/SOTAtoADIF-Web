@@ -41,3 +41,19 @@ summary{min-height:28px;padding:5px 0}footer a{display:inline-flex;align-items:c
 [data-contrast=high] .summit input[aria-invalid=true]{border-color:var(--hc-error)}
 [data-contrast=high] button:focus-visible,[data-contrast=high] a:focus-visible,[data-contrast=high] summary:focus-visible,[data-contrast=high] input:focus-visible,[data-contrast=high] pre:focus-visible,[data-contrast=high] #warnings:focus-visible,[data-contrast=high] .drop:focus-within{outline-color:var(--hc-focus)}
 [data-contrast=high] a{text-decoration:underline}[data-contrast=high] .brand{text-decoration:none}
+
+/* Enhanced target sizes and adjustable presentation of text blocks. */
+button,select,input:not([type=file]):not([type=checkbox]),summary,footer a{min-width:44px;min-height:44px}
+.check{min-height:44px;padding:6px 0}input[type=checkbox]{width:24px;height:24px;flex-shrink:0}.check:has(input){cursor:pointer}
+.reading-settings{margin:0 0 30px}.reading-controls{display:flex;flex-wrap:wrap;gap:18px;padding:15px 0}.reading-controls label{display:flex;align-items:center;gap:10px;min-height:44px}.reading-controls select,.reading-controls button{background:var(--surface,#fff);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:8px}.reading-controls input[type=color]{padding:3px;border:1px solid var(--line)}
+:root{--reading-scale:1;--reading-width:80ch}
+main p,.help p,#warnings li{max-width:var(--reading-width);text-align:left;line-height:1.5;margin-bottom:2.25em}
+main p,.help,details, .settings p,.status,.empty p,.check,.summit,.drop strong,.drop span,.drop small,.features,.footnote,.stats span,.download small,.download strong,pre{font-size:calc(14px * var(--reading-scale))}
+.reading-settings p{line-height:1.5}.help p{margin-top:0}#warnings li{margin-bottom:2.25em}pre{line-height:1.5}
+select:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+:root[data-reading-custom=true]{--ink:var(--reading-text);--muted:var(--reading-text);--surface:var(--reading-bg);--hc-text:var(--reading-text);--hc-secondary:var(--reading-text);--hc-bg:var(--reading-bg);--hc-panel:var(--reading-bg)}
+[data-reading-custom=true] body,[data-reading-custom=true] .card,[data-reading-custom=true] .drop,[data-reading-custom=true] .download,[data-reading-custom=true] pre,[data-reading-custom=true] .tag,[data-reading-custom=true] input,[data-reading-custom=true] select,[data-reading-custom=true] button{background:var(--reading-bg);color:var(--reading-text)}
+[data-reading-custom=true] main *,[data-reading-custom=true] header *,[data-reading-custom=true] footer *{color:var(--reading-text)}
+[data-reading-custom=true] button,[data-reading-custom=true] input,[data-reading-custom=true] select{border:1px solid var(--reading-text)}
+.reading-controls label{flex-wrap:wrap;max-width:100%}.reading-controls select{max-width:100%}input[type=file]{min-height:44px}
+.brand{min-height:44px;min-width:44px}

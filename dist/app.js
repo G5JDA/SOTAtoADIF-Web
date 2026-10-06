@@ -49,3 +49,29 @@ contrastToggle.addEventListener('click',()=>{
   applyContrast(high);
   try{localStorage.setItem('sotatoadif-contrast',high?'high':'normal');}catch{}
 });
+
+const readingDefaults={size:'100',width:'80',text:'#163d38',background:'#f4f6f2',custom:false};
+let reading={...readingDefaults};
+try{const saved=JSON.parse(localStorage.getItem('sotatoadif-reading')||'null');if(saved){
+  if(['100','150','200'].includes(saved.size))reading.size=saved.size;
+  if(['40','60','80'].includes(saved.width))reading.width=saved.width;
+  if(/^#[0-9a-f]{6}$/i.test(saved.text))reading.text=saved.text;
+  if(/^#[0-9a-f]{6}$/i.test(saved.background))reading.background=saved.background;
+  reading.custom=saved.custom===true;
+}}catch{}
+function applyReading(){
+  const root=document.documentElement;
+  root.style.setProperty('--reading-scale',Number(reading.size)/100);
+  root.style.setProperty('--reading-width',reading.width+'ch');
+  root.style.setProperty('--reading-text',reading.text);
+  root.style.setProperty('--reading-bg',reading.background);
+  root.dataset.readingCustom=String(reading.custom);
+  $('readingSize').value=reading.size;$('readingWidth').value=reading.width;
+  $('readingText').value=reading.text;$('readingBackground').value=reading.background;
+  $('readingCustom').checked=reading.custom;
+}
+for(const [id,key] of [['readingSize','size'],['readingWidth','width'],['readingText','text'],['readingBackground','background'],['readingCustom','custom']]){
+  $(id).addEventListener('change',()=>{reading[key]=key==='custom'?$(id).checked:$(id).value;applyReading();try{localStorage.setItem('sotatoadif-reading',JSON.stringify(reading));}catch{}});
+}
+$('readingReset').addEventListener('click',()=>{reading={...readingDefaults};applyReading();try{localStorage.removeItem('sotatoadif-reading');}catch{}});
+applyReading();
