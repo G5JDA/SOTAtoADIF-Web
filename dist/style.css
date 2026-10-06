@@ -16,3 +16,15 @@
 @media(max-width:480px){.header-controls .badge{display:none}}
 
 .locator-field{display:flex;flex-direction:column;gap:5px;width:180px;max-width:100%}.locator-error{font-size:12px;line-height:1.5;color:#854317}.summit{align-items:flex-start;flex-wrap:wrap}.summit input[aria-invalid=true]{border-color:#854317}[data-theme=dark] .locator-error{color:#e7b780}[data-theme=dark] .summit input[aria-invalid=true]{border-color:#e7b780}
+
+/* Accessible contrast, focus, target sizing, and reflow. */
+:root{--muted:#52675d}
+h1 span{color:#587a69}.step{color:#52675d}.tag{color:#52675d}.drop small{color:#52675d}.features{color:#52675d}.footnote{color:#52675d}
+.summit input{border:1px solid #73867b;background:#fff;min-height:36px}
+[data-theme=dark] .summit input{border-color:#80998b}
+button,a,summary,input{scroll-margin:20px}
+button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,pre:focus-visible,#warnings:focus-visible{outline:3px solid #1d6350;outline-offset:3px}
+[data-theme=dark] button:focus-visible,[data-theme=dark] a:focus-visible,[data-theme=dark] summary:focus-visible,[data-theme=dark] input:focus-visible,[data-theme=dark] pre:focus-visible,[data-theme=dark] #warnings:focus-visible{outline-color:#8ad5b1}
+summary{min-height:28px;padding:5px 0}footer a{display:inline-flex;align-items:center;min-height:28px}button{min-height:32px}.check{min-height:32px}.primary[aria-disabled=true]{opacity:.65;cursor:wait}
+.section-title,.features,.stats,.header-controls{flex-wrap:wrap}.section-title h2{min-width:0}.workspace>*,.download>*{min-width:0}.drop strong,.summit span,.download strong{overflow-wrap:anywhere}.download{flex-wrap:wrap}.intro p br{display:none}.brand{flex-shrink:0}
+@media(max-width:480px){header{flex-wrap:wrap;gap:12px;padding:18px}main{padding-left:16px;padding-right:16px}.card{padding:16px}h1{font-size:36px;letter-spacing:-1px}.tag{margin-left:0}.features{line-height:1.7}.locator-field{width:100%}.summit input{width:100%}.stats{gap:18px}}
