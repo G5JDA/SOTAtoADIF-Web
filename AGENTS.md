@@ -34,6 +34,8 @@ Use `node:test` with `node:assert/strict`. Add focused tests for changed convers
 
 ## Commit & Pull Request Guidelines
 
+Automatically commit completed, verified changes as work progresses. Keep each commit focused on one logical change; do not wait for a separate request to commit. Include only files relevant to that change, and do not push without explicit authorization.
+
 Use focused commits with concise imperative subjects, following the repository history, such as `Show manual locators only after lookup failure`. PR descriptions should explain behavior changes, validation, and limitations. Link relevant issues when available and include screenshots for visible UI changes.
 
 ## Privacy & Local-Only Operation
