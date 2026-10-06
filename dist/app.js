@@ -1,10 +1,20 @@
 import {readLog,lookupSummit,makeOutputs,validLocator} from './converter.js';
 const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),loadId=0;
-const sample='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,,Thanks for the contact\nV2,G5JDA/P,G/CE-001,06/10/2026,10:22,14MHz,USB,G4ABC/P,G/WB-001,Great summit to summit\nV2,G5JDA/P,G/CE-001,06/10/2026,10:30,7MHz,CW,G0XYZ,,73\n';
+// Synthetic demo identifiers deliberately do not resemble licensed callsigns.
+function makeSample(){
+  const ids=new Uint32Array(4);crypto.getRandomValues(ids);
+  const calls=[...ids].map(id=>`DEMO-${id.toString(16).toUpperCase().padStart(8,'0')}`);
+  return [
+    ['V2',calls[0],'G/CE-001','06/10/2026','10:15','144MHz','FM',calls[1],'','Synthetic test contact'],
+    ['V2',calls[0],'G/CE-001','06/10/2026','10:22','14MHz','USB',calls[2],'G/WB-001','Synthetic summit-to-summit contact'],
+    ['V2',calls[0],'G/CE-001','06/10/2026','10:30','7MHz','CW',calls[3],'','Synthetic test contact']
+  ].map(row=>row.join(',')).join('\n');
+}
+
 function warn(messages){$('warningBox').hidden=!messages.length;$('warningTitle').textContent=`${messages.length} warning${messages.length===1?'':'s'} · review excluded rows and lookups`;$('warnings').replaceChildren(...messages.map(message=>{const li=document.createElement('li');li.textContent=message;return li;}));}
 function load(text,name){try{loaded=readLog(text);loadId++;summits=new Map();$('fileLabel').textContent=name;$('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='READY TO CONVERT';$('status').textContent=`${loaded.qsos.length} valid QSOs found. Times are UTC.`;$('convert').disabled=!loaded.qsos.length;warn(loaded.warnings);renderSummits();}catch(e){loaded=null;$('convert').disabled=true;$('results').hidden=true;$('empty').hidden=false;$('locators').hidden=true;$('fileLabel').textContent=name;$('status').textContent=e.message;warn([]);}}
 function renderSummits(){const refs=[...new Set(loaded.qsos.flatMap(q=>[q.summit,q.other]).filter(Boolean))];$('locators').hidden=!refs.length;$('summitRows').replaceChildren(...refs.map(ref=>{const row=document.createElement('label');row.className='summit';const text=document.createElement('span');text.textContent=ref+(summits.get(ref)?.name?` · ${summits.get(ref).name}`:'');const input=document.createElement('input');input.placeholder='Locator';input.value=summits.get(ref)?.locator||'';input.setAttribute('aria-label',`${ref} locator`);input.pattern='[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?';input.addEventListener('input',()=>{summits.set(ref,{locator:input.value.trim().toUpperCase()});$('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='RECONVERT TO UPDATE';});row.append(text,input);return row;}));}
-$('file').addEventListener('change',async e=>{const file=e.target.files[0];if(file)load(await file.text(),file.name);});$('demo').onclick=()=>{load(sample,'sample-activation.csv');summits.set('G/CE-001',{name:'Cleeve Hill',locator:'IO81XW'});summits.set('G/WB-001',{name:'Worcester Beacon',locator:'IO82TB'});renderSummits();};
+$('file').addEventListener('change',async e=>{const file=e.target.files[0];if(file)load(await file.text(),file.name);});$('demo').onclick=()=>{load(makeSample(),'synthetic-demo-do-not-import.csv');summits.set('G/CE-001',{name:'Cleeve Hill',locator:'IO81XW'});summits.set('G/WB-001',{name:'Worcester Beacon',locator:'IO82TB'});renderSummits();};
 $('drop').addEventListener('dragover',e=>{e.preventDefault();$('drop').classList.add('drag');});$('drop').addEventListener('dragleave',()=>$('drop').classList.remove('drag'));$('drop').addEventListener('drop',async e=>{e.preventDefault();$('drop').classList.remove('drag');if(e.dataTransfer.files[0])load(await e.dataTransfer.files[0].text(),e.dataTransfer.files[0].name);});
 $('convert').onclick=async()=>{if(!loaded)return;const id=loadId;const current=loaded;const warnings=[...current.warnings];$('convert').disabled=true;$('file').disabled=true;$('demo').disabled=true;$('status').textContent='Preparing summit data…';try{
   if($('enrich').checked){const refs=[...new Set(current.qsos.flatMap(q=>[q.summit,q.other]).filter(Boolean))];for(let i=0;i<refs.length;i++){const ref=refs[i];if(validLocator(summits.get(ref)?.locator||''))continue;$('status').textContent=`Looking up ${ref} (${i+1}/${refs.length})…`;try{const data=await lookupSummit(ref);if(id!==loadId)return;summits.set(ref,data);}catch(e){warnings.push(`${ref}: lookup failed (${e.message}). Enter its locator manually.`);}}}
