@@ -39,6 +39,10 @@ Automatically commit completed, verified changes as work progresses. Keep each c
 
 Use focused commits with concise imperative subjects, following the repository history, such as `Show manual locators only after lookup failure`. PR descriptions should explain behavior changes, validation, and limitations. Link relevant issues when available and include screenshots for visible UI changes.
 
+## Accessibility Requirements
+
+Aim to meet WCAG 2.2 Level AA requirements. Level A requirements are non-negotiable for all new and changed functionality. Include accessibility in implementation and review: keyboard operation, accessible names, focus visibility, contrast, reflow, and understandable error/status messages. Use automated checks and relevant manual testing to identify gaps. Do not claim WCAG conformance; describe the requirements we aim to meet and the checks actually performed.
+
 ## Privacy & Local-Only Operation
 
 Keep CSV processing and ADIF generation in the browser. Send only summit references to the SOTA API; never upload logs or add telemetry. Do not publish or deploy this repository without a new explicit user request.
