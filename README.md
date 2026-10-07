@@ -27,3 +27,9 @@ Use “Include contacts on or after” to export a portion of a full log. The se
 ## Optional suffix merging
 
 Expand “Additional callsign exports” and enable merging to review mappings. Select each source and edit its destination if needed. All trailing suffixes can be merged; overseas prefixes are preserved (EA/G1ABC/P → EA/G1ABC). Review trailing overseas locations such as G1ABC/EA/P and keep the location in the destination. Ambiguous formats need a manually entered destination. Originals remain available; additional files contain only selected source contacts, excluding contacts already logged under the destination. Import one set per destination to avoid duplicates. Date filtering also applies to merged exports.
+
+## Feature validation
+
+Automated conversion and DOM tests cover inclusive UTC date boundaries (including year changes and leap days), empty selections, mixed home/overseas callsigns, unchanged ADIF contact fields, distinct original/merged filenames, accessible mapping/download names, and control locking during asynchronous lookups. Run `node --test tests/*.test.js`.
+
+Manual browser checks covered date entry and focus, keyboard merge toggling and tab navigation, all four light/dark and normal/high-contrast combinations, desktop and 390px mobile layouts, and merge mappings at 200% reading text size. Synthetic logs verified filtered and empty selections and separate home/overseas merged downloads. Browser automation did not confirm actual file download completion; generated download contents are tested in the DOM suite. These checks do not constitute a WCAG conformance claim.

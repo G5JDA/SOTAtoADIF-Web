@@ -12,7 +12,7 @@ class Element{
 }
 function app(lookup=async()=>({locator:'IO81XW',name:'Test summit'})){
  const elements=new Map();const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id);};
- const document={getElementById:get,createElement:()=>new Element(),documentElement:new Element(),querySelectorAll:()=>get('summitRows').children.map(row=>row.children[1].children[0])};
+ const document={getElementById:get,createElement:()=>new Element(),documentElement:new Element(),querySelectorAll:selector=>selector==='#mergeRows input'?get('mergeRows').children.flatMap(row=>[row.children[0].children[0],row.children[2]]):get('summitRows').children.map(row=>row.children[1].children[0])};
  document.documentElement.dataset.theme='light';get('mergeEnabled').checked=false;
  const downloads=[];const saved=new Map();
  const context={document,readLog,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,lookupSummit:lookup,createSummitLookup:fn=>fn,localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},matchMedia:()=>({matches:false,addEventListener(){}}),Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return 'blob:test';},revokeObjectURL(){}},setTimeout:fn=>fn()};
@@ -56,4 +56,21 @@ test('invalid mappings block conversion and disabling merging restores original-
  check.checked=true;target.value='';check.listeners.change();await ui.get('convert').onclick();
  assert.match(ui.get('status').textContent,/Review the destination/);assert.equal(ui.get('results').hidden,true);
  ui.get('mergeEnabled').checked=false;ui.get('mergeEnabled').listeners.change();await ui.get('convert').onclick();assert.equal(ui.get('downloads').children.length,1);
+});
+
+test('mixed home and overseas merge controls have labels, lock during lookup, and respect date filtering',async()=>{
+ let finish;const ui=app(()=>new Promise(resolve=>finish=resolve));
+ await ui.upload(row.replace('DEMO-STATION','G1ABC/P')+row.replace('DEMO-STATION','EA/G1ABC/QRP').replace('06/10/2026','05/10/2026'));
+ ui.get('mergeEnabled').checked=true;ui.get('mergeEnabled').listeners.change();
+ const mappings=ui.get('mergeRows').children;
+ for(const mapping of mappings){const check=mapping.children[0].children[0];check.checked=true;check.listeners.change();}
+ assert.equal(mappings[1].children[2].getAttribute('aria-label'),'Destination for EA/G1ABC/QRP');
+ assert.equal(mappings[1].children[2].value,'EA/G1ABC');
+ ui.get('startDate').value='2026-10-06';ui.get('startDate').listeners.change();
+ const conversion=ui.get('convert').onclick();
+ for(const mapping of mappings){assert.equal(mapping.children[0].children[0].disabled,true);assert.equal(mapping.children[2].disabled,true);}
+ finish({locator:'IO81XW'});await conversion;
+ for(const mapping of mappings)assert.equal(mapping.children[2].disabled,false);
+ assert.equal(ui.get('downloads').children.length,2);
+ assert.equal(ui.get('downloads').children[1].children[1].getAttribute('aria-label'),'Download merged ADIF for G1ABC');
 });

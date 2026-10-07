@@ -27,3 +27,21 @@ test('merged exports preserve operating groups and fields, exclude plain contact
  assert.match(files[1].text,/<STATION_CALLSIGN:8>EA\/G1ABC/);assert.match(files[1].text,/<MY_SOTA_REF:8>G\/CE-001/);
  assert.ok(files.every(f=>f.name.includes('suffixes-merged')&&f.merged));
 });
+
+test('merged ADIF changes only station callsign and never collides with original filenames',()=>{
+ const qsos=readLog(row+'\n'+row.replace('G5JDA/P','G5JDA')).qsos;
+ const summits=new Map([['G/CE-001',{locator:'IO81XW'}],['G/WB-001',{locator:'IO82TB'}]]);
+ const now=new Date('2026-10-06T12:00:00Z');
+ const original=makeOutputs(qsos,summits,now).files;
+ const merged=makeMergedOutputs(qsos,summits,new Map([['G5JDA/P','G5JDA']]),now);
+ assert.equal(merged.length,1);assert.equal(merged[0].count,1);
+ assert.equal(merged[0].text,original[0].text.replace('<STATION_CALLSIGN:7>G5JDA/P','<STATION_CALLSIGN:5>G5JDA'));
+ const names=[...original,...merged].map(f=>f.name);assert.equal(new Set(names).size,names.length);
+});
+test('date boundaries span UTC year changes and leap days',()=>{
+ const qsos=[{date:'20231231'},{date:'20240101'},{date:'20240229'},{date:'20240301'}];
+ assert.deepEqual(filterByDate(qsos,'2024-01-01').qsos,qsos.slice(1));
+ assert.deepEqual(filterByDate(qsos,'2024-02-29').qsos,qsos.slice(2));
+ assert.throws(()=>filterByDate(qsos,'2023-02-29'));
+ assert.equal(makeMergedOutputs([],new Map(),new Map()).length,0);
+});
