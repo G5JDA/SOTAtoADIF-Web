@@ -38,3 +38,15 @@ export function makeOutputs(qsos,summits,now=new Date()){const groups=new Map(),
   const timestamp=now.toISOString().slice(0,19),stamp=timestamp.replace(/[-:]/g,'').replace('T',' ');
   const files=[...groups].map(([station,records])=>({station,count:records.length,name:`${station.replace(/[^A-Z0-9-]/g,'-')}_SOTAtoADIF_${timestamp.replace('T','_').replace(/:/g,'-')}.adi`,text:`# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.\n`+field('ADIF_VER','3.1.4')+'\n'+field('PROGRAMID','SOTAtoADIF')+'\n'+field('PROGRAMVERSION','web-1.0.0')+'\n'+field('CREATED_TIMESTAMP',stamp)+'\n<EOH>\n'+records.join('')}));return {files,skipped};
 }
+
+// Dates are compared in the same UTC calendar format as QSO_DATE.
+export function filterByDate(qsos, startDate='') {
+  if (!startDate) return {qsos, filtered:0};
+  const date = new Date(startDate+'T00:00:00Z');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==startDate) {
+    throw new Error('Choose a valid start date or clear the date field.');
+  }
+  const cutoff = startDate.replaceAll('-', '');
+  const included = qsos.filter(q=>q.date>=cutoff);
+  return {qsos:included, filtered:qsos.length-included.length};
+}

@@ -948,3 +948,22 @@ input[type=file] {
     font-size: calc(36px * var(--reading-scale));
   }
 }
+
+.date-filter {
+  display: block;
+  margin-bottom: 0.5em;
+}
+#startDate {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.5em;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  color-scheme: light;
+}
+[data-theme=dark] #startDate {
+  color-scheme: dark;
+}

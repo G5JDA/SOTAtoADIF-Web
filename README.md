@@ -19,3 +19,7 @@ This browser port is licensed under the GNU Affero General Public License, versi
 ## Home-screen installation
 
 The manifest uses relative URLs and includes Android and Apple home-screen icons. Open the app on a phone-accessible URL and use the browser’s installation or Add to Home Screen option (on iOS, Share → Add to Home Screen). Installation availability depends on the browser and secure-origin requirements. No service worker or offline app-shell caching is provided.
+
+## Date selection
+
+Use “Include contacts on or after” to export a portion of a full log. The selected UTC date is inclusive; leave it blank for the whole log. Older valid contacts are filtered before summit lookups and counted separately from errors. Invalid CSV rows remain reported. Changing the date requires another conversion.

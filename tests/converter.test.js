@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs} from '../dist/converter.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});
 test('validates rows without losing valid contacts',()=>{const {qsos,warnings}=readLog(row+'\nV2,too,short\n'+row.replace('06/10/2026','31/02/2026'));assert.equal(qsos.length,1);assert.equal(warnings.length,2);assert.equal(qsos[0].date,'20261006');});
 test('original frequency and submode mapping',()=>{assert.equal(frequencyToBand('5MHz'),'60m');assert.equal(frequencyToBand('18MHz'),'17m');assert.equal(frequencyToBand('999MHz'),'');assert.deepEqual(modeFor('USB'),{mode:'SSB',submode:'USB'});assert.deepEqual(modeFor('FT4'),{mode:'MFSK',submode:'FT4'});assert.deepEqual(modeFor('DV'),{mode:'DIGITALVOICE'});});
 test('ADIF groups station callsigns and uses correct S2S fields',()=>{const {qsos}=readLog(row+'\n'+row.replace('G5JDA/P','GW5JDA/P'));const maps=new Map([['G/CE-001',{locator:'IO81XW'}],['G/WB-001',{locator:'IO82TB'}]]);const {files}=makeOutputs(qsos,maps,new Date('2026-10-06T12:00:00Z'));assert.equal(files.length,2);assert.match(files[0].text,/<MY_SOTA_REF:8>G\/CE-001/);assert.match(files[0].text,/<SOTA_REF:8>G\/WB-001/);assert.match(files[0].text,/<MY_GRIDSQUARE:6>IO81XW/);assert.match(files[0].text,/<GRIDSQUARE:6>IO82TB/);assert.equal((files[0].text.match(/<MY_SOTA_REF/g)||[]).length,1);assert.match(files[0].text,/Your SOTA Ref: G\/WB-001/);assert.ok(!files[0].name.includes('/'));});
 test('missing locators exclude records with visible warnings',()=>{const {qsos}=readLog(row);const out=makeOutputs(qsos,new Map());assert.equal(out.files.length,0);assert.equal(out.skipped.length,1);});
+
+test('date filter is inclusive, optional, and validates calendar dates',()=>{
+ const qsos=readLog(row+'\n'+row.replace('06/10/2026','05/10/2026')).qsos;
+ assert.equal(filterByDate(qsos).qsos.length,2);
+ assert.equal(filterByDate(qsos,'2026-10-06').qsos.length,1);
+ assert.equal(filterByDate(qsos,'2026-10-07').filtered,2);
+ assert.throws(()=>filterByDate(qsos,'2026-02-30'),/valid start date/);
+});
