@@ -9,7 +9,7 @@ This is a dependency-free static browser port of SOTAtoADIF. `dist/` contains ed
 - `converter.js`: CSV parsing, validation, summit API requests, and ADIF generation.
 - `summit-cache.js`: 24-hour local summit cache and concurrent lookup deduplication.
 - `modes.js`: ADIF mode and submode mappings inherited from the Python project.
-- `tests/converter.test.js`: conversion tests.
+- `tests/`: conversion, summit cache, and DOM interaction regression tests.
 
 `LICENSE` and `dist/LICENSE` contain AGPLv3 text. `.openai/hosting.json` retains the previous hosted Site identity solely for removal; it is not deployment authorization.
 
