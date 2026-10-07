@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate} from '../dist/converter.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});
 test('validates rows without losing valid contacts',()=>{const {qsos,warnings}=readLog(row+'\nV2,too,short\n'+row.replace('06/10/2026','31/02/2026'));assert.equal(qsos.length,1);assert.equal(warnings.length,2);assert.equal(qsos[0].date,'20261006');});
@@ -13,4 +13,17 @@ test('date filter is inclusive, optional, and validates calendar dates',()=>{
  assert.equal(filterByDate(qsos,'2026-10-06').qsos.length,1);
  assert.equal(filterByDate(qsos,'2026-10-07').filtered,2);
  assert.throws(()=>filterByDate(qsos,'2026-02-30'),/valid start date/);
+});
+
+test('suffix proposals preserve overseas prefixes and leave ambiguous callsigns for review',()=>{
+ assert.equal(proposeMerge('G1ABC/QRP'),'G1ABC');assert.equal(proposeMerge('EA/G1ABC/P'),'EA/G1ABC');
+ assert.equal(proposeMerge('EA/G1ABC'),'');assert.equal(proposeMerge('G1ABC/F2XYZ/P'),'');
+});
+test('merged exports preserve operating groups and fields, exclude plain contacts, and have distinct names',()=>{
+ const qsos=readLog(['G1ABC/P','G1ABC/QRP','G1ABC','EA/G1ABC/P','EA/G1ABC/M','EA/G1ABC'].map(s=>row.replace('G5JDA/P',s)).join('\n')).qsos;
+ const mappings=new Map([['G1ABC/P','G1ABC'],['G1ABC/QRP','G1ABC'],['EA/G1ABC/P','EA/G1ABC'],['EA/G1ABC/M','EA/G1ABC']]);
+ const files=makeMergedOutputs(qsos,new Map([['G/CE-001',{locator:'IO81XW'}]]),mappings);
+ assert.deepEqual(files.map(f=>[f.station,f.count]),[['G1ABC',2],['EA/G1ABC',2]]);
+ assert.match(files[1].text,/<STATION_CALLSIGN:8>EA\/G1ABC/);assert.match(files[1].text,/<MY_SOTA_REF:8>G\/CE-001/);
+ assert.ok(files.every(f=>f.name.includes('suffixes-merged')&&f.merged));
 });

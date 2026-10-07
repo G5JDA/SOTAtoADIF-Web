@@ -23,3 +23,7 @@ The manifest uses relative URLs and includes Android and Apple home-screen icons
 ## Date selection
 
 Use “Include contacts on or after” to export a portion of a full log. The selected UTC date is inclusive; leave it blank for the whole log. Older valid contacts are filtered before summit lookups and counted separately from errors. Invalid CSV rows remain reported. Changing the date requires another conversion.
+
+## Optional suffix merging
+
+Expand “Additional callsign exports” and enable merging to review mappings. Select each source and edit its destination if needed. All trailing suffixes can be merged; overseas prefixes are preserved (EA/G1ABC/P → EA/G1ABC). Review trailing overseas locations such as G1ABC/EA/P and keep the location in the destination. Ambiguous formats need a manually entered destination. Originals remain available; additional files contain only selected source contacts, excluding contacts already logged under the destination. Import one set per destination to avoid duplicates. Date filtering also applies to merged exports.

@@ -50,3 +50,17 @@ export function filterByDate(qsos, startDate='') {
   const included = qsos.filter(q=>q.date>=cutoff);
   return {qsos:included, filtered:qsos.length-included.length};
 }
+
+// Conservative proposals only: users review every source and destination.
+export function proposeMerge(station) {
+  const parts=station.toUpperCase().split('/');
+  const indexes=parts.flatMap((part,index)=>/^[A-Z0-9]*[A-Z][0-9]+[A-Z]+$/.test(part)?[index]:[]);
+  if(indexes.length!==1 || indexes[0]===parts.length-1) return '';
+  return parts.slice(0,indexes[0]+1).join('/');
+}
+export function makeMergedOutputs(qsos,summits,mappings,now=new Date()) {
+  const merged=qsos.filter(q=>mappings.has(q.station)&&mappings.get(q.station)!==q.station)
+    .map(q=>({...q,station:mappings.get(q.station)}));
+  return makeOutputs(merged,summits,now).files.map(file=>({...file,merged:true,
+    name:file.name.replace('_SOTAtoADIF_','_suffixes-merged_SOTAtoADIF_')}));
+}
