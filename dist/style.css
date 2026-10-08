@@ -911,9 +911,22 @@ input[type=file] {
   font-size: calc(10px * var(--reading-scale));
 }
 
+.intro {
+  container-type: inline-size;
+}
+
 .intro h1 {
-  font-size: calc(54px * var(--reading-scale));
+  font-size: min(calc(54px * var(--reading-scale)), 12cqi);
   overflow-wrap: anywhere;
+}
+
+.intro h1 .intro-sentence {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.intro h1 .intro-sentence:first-child {
+  color: inherit;
 }
 
 .intro p {
@@ -923,13 +936,13 @@ input[type=file] {
 
 @media(max-width:750px) {
   .intro h1 {
-    font-size: calc(42px * var(--reading-scale));
+    font-size: min(calc(42px * var(--reading-scale)), 12cqi);
   }
 }
 
 @media(max-width:480px) {
   .intro h1 {
-    font-size: calc(36px * var(--reading-scale));
+    font-size: min(calc(36px * var(--reading-scale)), 12cqi);
   }
 }
 
