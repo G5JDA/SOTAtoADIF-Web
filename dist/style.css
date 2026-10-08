@@ -58,7 +58,7 @@ a {
 }
 
 .badge {
-  font-size: 11px;
+  font-size: 0.875rem;
   border: 1px solid var(--line);
   padding: 8px 12px;
   border-radius: 20px;
@@ -312,7 +312,7 @@ summary {
 
 footer {
   border-top: 1px solid var(--line);
-  font-size: 10px;
+  font-size: 1rem;
   gap: 22px;
 }
 
@@ -428,10 +428,6 @@ button:focus-visible,a:focus-visible,summary:focus-visible {
     padding: 22px;
   }
 
-  .badge {
-    font-size: 9px;
-  }
-
   main {
     padding-top: 35px;
   }
@@ -472,7 +468,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible {
   color: var(--ink);
   border-radius: 20px;
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: 1rem;
   margin-left: 12px;
 }
 
