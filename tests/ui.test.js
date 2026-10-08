@@ -8,6 +8,7 @@ class Element{
   constructor(){this.children=[];this.attributes={};this.listeners={};this.checked=true;this.style={setProperty(){}};this.dataset={};this.classList={add(){},remove(){}};}
   setAttribute(k,v){this.attributes[k]=v;}getAttribute(k){return this.attributes[k];}removeAttribute(k){delete this.attributes[k];}
   addEventListener(k,fn){this.listeners[k]=fn;}append(...nodes){this.children.push(...nodes);}replaceChildren(...nodes){this.children=nodes;}
+  focus(){this.focused=true;}
   click(){this.clicked=true;this.onclick?.();}
 }
 function app(lookup=async()=>({locator:'IO81XW',name:'Test summit'})){
@@ -45,7 +46,7 @@ test('merging is opt-in and produces separately labelled downloads without infla
  const mapping=ui.get('mergeRows').children[0];const check=mapping.children[0].children[0];check.checked=true;check.listeners.change();
  await ui.get('convert').onclick();assert.equal(ui.get('downloads').children.length,2);
  assert.equal(ui.get('stats').children[0].children[0].textContent,1);
- assert.equal(ui.get('mergeDownloadWarning').hidden,false);
+ assert.equal(ui.get('mergeDownloadWarning').hidden,false);assert.match(ui.get('status').textContent,/additional merged files available.*avoid duplicates/);
  assert.equal(ui.get('downloads').children[1].children[1].getAttribute('aria-label'),'Download merged ADIF for G1ABC');
 });
 
@@ -157,4 +158,27 @@ for(const [label,roles] of [
   assert.equal(ui.get('stats').children[0].children[0].textContent,5+extra);
   ui.get('mergeEnabled').checked=false;ui.get('mergeEnabled').listeners.change();await ui.get('convert').onclick();
   assert.ok(ui.get('downloads').children.every(download=>!download.children[1].getAttribute('aria-label').includes('merged')));
+});
+
+test('incomplete date blocks conversion with an associated error and restores focus',async()=>{
+ let lookups=0;const ui=app(async()=>{lookups++;return {locator:'IO81XW'};});await ui.upload(row);
+ ui.get('startDate').validity={badInput:true};ui.get('startDate').listeners.change();await ui.get('convert').onclick();
+ assert.equal(lookups,0);assert.equal(ui.get('startDate').getAttribute('aria-invalid'),'true');assert.equal(ui.get('dateError').hidden,false);assert.equal(ui.get('startDate').focused,true);
+ ui.get('startDate').validity={badInput:false};ui.get('startDate').listeners.change();assert.equal(ui.get('dateError').hidden,true);
+});
+test('invalid merge destination exposes inline error and receives focus after controls unlock',async()=>{
+ const ui=app();await ui.upload(row.replace('DEMO-STATION','ZZ1AAA/P'));ui.get('mergeEnabled').checked=true;ui.get('mergeEnabled').listeners.change();
+ const mapping=ui.get('mergeRows').children[0];mapping.children[0].children[0].checked=true;mapping.children[2].value='';mapping.children[2].listeners.input();await ui.get('convert').onclick();
+ assert.equal(mapping.children[2].getAttribute('aria-invalid'),'true');assert.equal(mapping.children[3].hidden,false);assert.equal(mapping.children[2].focused,true);assert.equal(mapping.children[2].disabled,false);assert.equal(ui.get('mergeOptions').open,true);
+});
+test('removing a file recovers focus and locator fields identify required versus optional',async()=>{
+ const ui=app();await ui.upload(row.replace(',,,',',G/XX-999,,'));ui.get('enrich').checked=false;ui.get('enrich').listeners.change();
+ const own=ui.get('summitRows').children[0],worked=ui.get('summitRows').children[1];
+ assert.match(own.children[0].textContent,/own summit.*required/);assert.equal(own.children[1].children[0].getAttribute('aria-required'),'true');
+ assert.match(worked.children[0].textContent,/worked summit.*optional/);assert.equal(worked.children[1].children[0].getAttribute('aria-required'),'false');
+ ui.get('clearMain').listeners.click();assert.equal(ui.get('file').focused,true);
+});
+test('custom colour feedback reports poor contrast and reset disables custom colours',()=>{
+ const ui=app();ui.get('readingText').value='#ffffff';ui.get('readingText').listeners.change();ui.get('readingBackground').value='#ffffff';ui.get('readingBackground').listeners.change();ui.get('readingCustom').checked=true;ui.get('readingCustom').listeners.change();
+ assert.match(ui.get('readingContrast').textContent,/1.00:1.*Below/);ui.get('readingReset').listeners.click();assert.equal(ui.document.documentElement.dataset.readingCustom,'false');
 });

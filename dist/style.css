@@ -996,3 +996,25 @@ input[type=file] {
 }
 
 #loadedFiles p { overflow-wrap: anywhere; }
+
+.reading-controls select,.reading-controls input[type=color] {
+  border-color: #73867b;
+}
+[data-theme=dark] .reading-controls select,[data-theme=dark] .reading-controls input[type=color] {
+  border-color: #80998b;
+}
+/* Keep recovery controls legible even with identical custom colours. */
+[data-reading-custom=true] .reading-settings,
+[data-reading-custom=true] .reading-settings * {
+  color: #000 !important;
+  background-color: #fff !important;
+}
+[data-reading-custom=true] .reading-settings button,
+[data-reading-custom=true] .reading-settings input,
+[data-reading-custom=true] .reading-settings select {
+  border-color: #555 !important;
+}
+[data-reading-custom=true] .reading-settings :focus-visible {
+  outline-color: #000 !important;
+}
+.merge-row input[aria-invalid=true] { border-width: 2px; }
