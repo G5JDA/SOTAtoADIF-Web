@@ -15,7 +15,8 @@ export function parseCSV(text) {
 }
 const bands=[[.1357,.1378,'2190m'],[.472,.479,'630m'],[.501,.504,'560m'],[1.8,2,'160m'],[3.5,4,'80m'],[5,5.45,'60m'],[7,7.3,'40m'],[10,10.15,'30m'],[14,14.35,'20m'],[18,18.168,'17m'],[21,21.45,'15m'],[24,24.99,'12m'],[28,29.7,'10m'],[40,45,'8m'],[50,54,'6m'],[54.000001,69.9,'5m'],[70,71,'4m'],[144,148,'2m'],[222,225,'1.25m'],[420,450,'70cm'],[902,928,'33cm'],[1240,1300,'23cm'],[2300,2450,'13cm'],[3300,3500,'9cm'],[5650,5925,'6cm'],[10000,10500,'3cm'],[24000,24250,'1.25cm'],[47000,47200,'6mm'],[75500,81000,'4mm'],[119980,123000,'2.5mm'],[134000,149000,'2mm'],[241000,250000,'1mm'],[300000,7500000,'submm']];
 export function frequencyToBand(s){const m=s.match(/^(\d+(?:\.\d+)?)\s*MHz$/i);return m?bands.find(([a,b])=>+m[1]>=a&&+m[1]<=b)?.[2]||'':'';}
-export function modeFor(s){s=s.toUpperCase();if(s==='DV')s='DIGITALVOICE';if(s in modes)return {mode:s};for(const [mode,subs] of Object.entries(modes))if(subs?.includes(s))return {mode,submode:s};return null;}
+// Preserve SOTA's generic DATA mode as an intentional extension to ADIF's mode enumeration.
+export function modeFor(s){s=s.toUpperCase();if(s==='DATA')return {mode:s};if(s==='DV')s='DIGITALVOICE';if(s in modes)return {mode:s};for(const [mode,subs] of Object.entries(modes))if(subs?.includes(s))return {mode,submode:s};return null;}
 export function readLog(text,{chaser=false}={}){const warnings=[],qsos=[];parseCSV(text).forEach((r,index)=>{const line=index+1;if(r.every(x=>!x.trim())||r[0]==='Version')return;
   if(r[0]!=='V2'||r.length<10){warnings.push(`Row ${line}: expected a SOTA V2 record with 10 columns.`);return;}
   const [version,station,summit,date,time,frequency,mode,call,other,comment]=r.map(x=>x.trim());

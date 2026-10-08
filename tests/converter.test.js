@@ -1,6 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
+test('DATA survives all log imports, enrichment, date filtering and suffix exports',()=>{
+  const dataRow='V2,G1ABC/P,G/XX-001,08/10/2026,12:00,14MHz,data,G2XYZ,G/XX-002,Synthetic contact';
+  assert.deepEqual(modeFor('DATA'),{mode:'DATA'});
+  assert.equal(modeFor('UNKNOWN'),null);
+  const main=readLog(dataRow.replace('G/XX-002',''));
+  const s2s=readS2S(dataRow+',0,0');
+  const chaser=readChaser(dataRow.replace('G/XX-001',''));
+  for(const log of [main,s2s,chaser]){
+    assert.equal(log.warnings.length,0);
+    assert.equal(log.qsos[0].mode,'DATA');
+    assert.equal(log.qsos[0].submode,undefined);
+  }
+  const enriched=joinS2S(main.qsos,s2s.qsos);
+  assert.equal(enriched.enriched,1);
+  const joined=joinChaser(enriched.qsos,chaser.qsos);
+  assert.equal(joined.qsos.length,1);
+  const selected=filterByDate(joined.qsos,'2026-10-08').qsos;
+  const summits=new Map([['G/XX-001',{locator:'IO81XW'}],['G/XX-002',{locator:'IO82TB'}]]);
+  for(const qsos of [main.qsos,s2s.qsos,chaser.qsos,selected]){
+    const output=makeOutputs(qsos,summits);
+    assert.equal(output.skipped.length,0);
+    assert.match(output.files[0].text,/<MODE:4>DATA/);
+    assert.doesNotMatch(output.files[0].text,/<SUBMODE/);
+  }
+  const merged=makeMergedOutputs(selected,summits,new Map([['G1ABC/P','G1ABC']]));
+  assert.match(merged[0].text,/<MODE:4>DATA/);
+  assert.equal(merged[0].count,1);
+});
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});
 test('validates rows without losing valid contacts',()=>{const {qsos,warnings}=readLog(row+'\nV2,too,short\n'+row.replace('06/10/2026','31/02/2026'));assert.equal(qsos.length,1);assert.equal(warnings.length,2);assert.equal(qsos[0].date,'20261006');});
 test('original frequency and submode mapping',()=>{assert.equal(frequencyToBand('5MHz'),'60m');assert.equal(frequencyToBand('18MHz'),'17m');assert.equal(frequencyToBand('999MHz'),'');assert.deepEqual(modeFor('USB'),{mode:'SSB',submode:'USB'});assert.deepEqual(modeFor('FT4'),{mode:'MFSK',submode:'FT4'});assert.deepEqual(modeFor('DV'),{mode:'DIGITALVOICE'});});
