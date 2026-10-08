@@ -935,6 +935,14 @@ input[type=file] {
 }
 
 @media(max-width:750px) {
+  .intro {
+    text-align: center;
+  }
+
+  .intro p {
+    text-align: center;
+  }
+
   .intro h1 {
     font-size: min(calc(42px * var(--reading-scale)), 12cqi);
   }
