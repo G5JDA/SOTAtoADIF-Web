@@ -985,7 +985,7 @@ input[type=file] {
   border-radius: 6px;
 }
 
-#clearMain,#clearS2S {
+#clearMain,#clearS2S,#clearChaser {
   min-height: 44px;
   padding: 0.5em 0.75em;
   color: inherit;

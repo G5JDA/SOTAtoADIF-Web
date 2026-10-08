@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType} from '../dist/converter.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});
 test('validates rows without losing valid contacts',()=>{const {qsos,warnings}=readLog(row+'\nV2,too,short\n'+row.replace('06/10/2026','31/02/2026'));assert.equal(qsos.length,1);assert.equal(warnings.length,2);assert.equal(qsos[0].date,'20261006');});
@@ -64,4 +64,16 @@ test('S2S unmatched, ambiguous, and conflicting matches never add or overwrite c
 test('upload classification prefers S2S layout and supports filename fallback',()=>{
  assert.equal(detectLogType(row,'renamed.csv'),'activator');assert.equal(detectLogType(row+',0,0','wrong_activator.csv'),'s2s');
  assert.equal(detectLogType(row,'example_s2s.csv'),'s2s');assert.throws(()=>detectLogType('unrelated,data','unknown.csv'));
+});
+
+test('chaser standalone omits unknown own fields and joins add only nonmatching contacts',()=>{
+ const text=row.replace('G/CE-001','');const chaser=readChaser(text).qsos;
+ assert.equal(detectLogType(text,'renamed.csv'),'chaser');assert.equal(chaser.length,1);
+ const out=makeOutputs(chaser,new Map([['G/WB-001',{locator:'IO82TB'}]])).files[0].text;
+ assert.doesNotMatch(out,/<MY_SOTA_REF|<MY_GRIDSQUARE/);assert.match(out,/<SOTA_REF:8>G\/WB-001/);assert.match(out,/<GRIDSQUARE:6>IO82TB/);
+ const main=readLog(row.replace('G/WB-001','')).qsos;
+ const joined=joinChaser(main,[...chaser,{...chaser[0],time:'1215'}]);
+ assert.equal(joined.qsos.length,2);assert.equal(joined.enriched,1);assert.equal(joined.added,1);assert.equal(joined.qsos[0].summit,'G/CE-001');assert.equal(joined.qsos[1].summit,'');
+ assert.equal(joinChaser(main,[...chaser,...chaser]).ambiguous,2);
+ assert.equal(joinChaser(readLog(row).qsos,[{...chaser[0],other:'G/ZZ-999'}]).conflicts,1);
 });

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType} from './converter.js';
+import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser} from './converter.js';
 import {createSummitLookup} from './summit-cache.js';
 let summitStorage;
 try{summitStorage=localStorage;}catch{}
 const cachedSummitLookup=createSummitLookup(lookupSummit,summitStorage);
-const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),failedLookups=new Set(),loadId=0,busy=false,mergeMappings=new Map(),mainLog=null,s2sLog=null,mainName='',s2sName='';
-function setBusy(value){busy=value;$('convert').setAttribute('aria-disabled',String(value));$('file').disabled=value;$('clearMain').disabled=value||!mainLog;$('clearS2S').disabled=value||!s2sLog;$('enrich').disabled=value;$('startDate').disabled=value;$('mergeEnabled').disabled=value;for(const input of document.querySelectorAll('#mergeRows input'))input.disabled=value;for(const input of document.querySelectorAll('#summitRows input'))input.disabled=value;$('drop').setAttribute('aria-disabled',String(value));}
+const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),failedLookups=new Set(),loadId=0,busy=false,mergeMappings=new Map(),mainLog=null,s2sLog=null,mainName='',s2sName='',chaserLog=null,chaserName='';
+function setBusy(value){busy=value;$('convert').setAttribute('aria-disabled',String(value));$('file').disabled=value;$('clearChaser').disabled=value||!chaserLog;$('clearMain').disabled=value||!mainLog;$('clearS2S').disabled=value||!s2sLog;$('enrich').disabled=value;$('startDate').disabled=value;$('mergeEnabled').disabled=value;for(const input of document.querySelectorAll('#mergeRows input'))input.disabled=value;for(const input of document.querySelectorAll('#summitRows input'))input.disabled=value;$('drop').setAttribute('aria-disabled',String(value));}
 async function readFiles(files){
   if(busy||!files?.length)return;setBusy(true);$('results').hidden=true;
   const pending=new Map();let currentName='CSV';
@@ -13,10 +13,11 @@ async function readFiles(files){
     for(const file of Array.from(files)){
       currentName=file.name;const text=await file.text();const type=detectLogType(text,file.name);
       if(pending.has(type))throw new Error(`Select only one ${type} log at a time. No files from this selection were applied.`);
-      pending.set(type,{name:file.name,log:type==='s2s'?readS2S(text):readLog(text)});
+      pending.set(type,{name:file.name,log:type==='s2s'?readS2S(text):type==='chaser'?readChaser(text):readLog(text)});
     }
     if(pending.has('activator')){mainLog=pending.get('activator').log;mainName=pending.get('activator').name;}
     if(pending.has('s2s')){s2sLog=pending.get('s2s').log;s2sName=pending.get('s2s').name;}
+    if(pending.has('chaser')){chaserLog=pending.get('chaser').log;chaserName=pending.get('chaser').name;}
     rebuildLog();
   }catch(e){
     rebuildLog();$('resultBadge').textContent='FILE READ FAILED';
@@ -25,17 +26,22 @@ async function readFiles(files){
 }
 $('clearS2S').addEventListener('click',()=>{if(busy)return;s2sLog=null;s2sName='';rebuildLog();setBusy(false);});
 $('clearMain').addEventListener('click',()=>{if(busy)return;mainLog=null;mainName='';rebuildLog();setBusy(false);});
+$('clearChaser').addEventListener('click',()=>{if(busy)return;chaserLog=null;chaserName='';rebuildLog();setBusy(false);});
 function warn(messages){$('warningBox').hidden=!messages.length;$('warningBox').open=!!messages.length;$('warningTitle').textContent=`${messages.length} warning${messages.length===1?'':'s'} · review excluded rows and lookups`;$('warnings').replaceChildren(...messages.map(message=>{const li=document.createElement('li');li.textContent=message;return li;}));}
 function rebuildLog(){
-  $('fileLabel').textContent='Drop your SOTA CSV files here';$('mainName').textContent=mainLog?`Activator: ${mainName}`:'';$('s2sName').textContent=s2sLog?`S2S: ${s2sName}`:'';$('loadedFiles').hidden=!mainLog&&!s2sLog;$('mainFileRow').hidden=!mainLog;$('s2sFileRow').hidden=!s2sLog;
-  loaded=mainLog||s2sLog;
+  $('fileLabel').textContent='Drop your SOTA CSV files here';$('mainName').textContent=mainLog?`Activator: ${mainName}`:'';$('s2sName').textContent=s2sLog?`S2S: ${s2sName}`:'';$('loadedFiles').hidden=!mainLog&&!s2sLog&&!chaserLog;$('chaserFileRow').hidden=!chaserLog;$('chaserName').textContent=chaserLog?`Chaser: ${chaserName}`:'';$('mainFileRow').hidden=!mainLog;$('s2sFileRow').hidden=!s2sLog;
+  loaded=mainLog||s2sLog||chaserLog;
   const joined=mainLog&&s2sLog?joinS2S(mainLog.qsos,s2sLog.qsos):null;
   if(joined)loaded={qsos:joined.qsos,warnings:mainLog.warnings,lookupWarnings:[...s2sLog.warnings,...joined.warnings]};
   $('s2sSummary').hidden=!s2sLog;
-  $('s2sSummary').textContent=joined?`${joined.enriched} S2S contacts matched; ${joined.unmatched} unmatched, ${joined.ambiguous} ambiguous, ${joined.conflicts} conflicting. Activator contacts remain the export list.`:s2sLog?`${s2sLog.qsos.length} S2S contacts available for standalone conversion.`:'';
+  $('s2sSummary').textContent=joined?`${joined.enriched} S2S contacts matched; ${joined.unmatched} unmatched, ${joined.ambiguous} ambiguous, ${joined.conflicts} conflicting. S2S-only unmatched contacts are not appended.`:s2sLog?`${s2sLog.qsos.length} S2S contacts available for standalone conversion.`:'';
+  const combined=chaserLog&&(mainLog||s2sLog)?joinChaser(loaded.qsos,chaserLog.qsos):null;
+  if(combined)loaded={qsos:combined.qsos,warnings:[...loaded.warnings,...chaserLog.warnings],lookupWarnings:[...(loaded.lookupWarnings||[]),...combined.warnings]};
+  $('chaserSummary').hidden=!chaserLog;
+  $('chaserSummary').textContent=combined?`${combined.enriched} chaser contacts matched; ${combined.added} additional contacts; ${combined.ambiguous} ambiguous, ${combined.conflicts} conflicting. Chaser-only contacts have no own summit or locator.`:chaserLog?`${chaserLog.qsos.length} chaser contacts. Own summit and locator are omitted; worked summit locators can be looked up.`:'';
   loadId++;summits=new Map();failedLookups=new Set();mergeMappings=new Map();renderMergeOptions();
   $('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent=loaded?'READY TO CONVERT':'WAITING FOR LOG';
-  $('status').textContent=loaded?`${loaded.qsos.length} valid QSOs found. Times are UTC. Review any warning details below.`:'Choose an activator or S2S CSV file to get started.';
+  $('status').textContent=loaded?`${loaded.qsos.length} valid QSOs found. Times are UTC. Review any warning details below.`:'Choose an activator, S2S or chaser CSV file to get started.';
   $('convert').disabled=!loaded?.qsos.length;warn([...(loaded?.warnings||[]),...(loaded?.lookupWarnings||[])]);renderSummits();
 }
 function invalidateMerge(){ $('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='RECONVERT TO UPDATE';$('status').textContent='Export options changed. Convert again to update downloads.'; }
@@ -59,7 +65,7 @@ $('mergeEnabled').addEventListener('change',()=>{if(busy)return;renderMergeOptio
 renderMergeOptions();
 function selectedContacts(){return filterByDate(loaded?.qsos||[], $('startDate').value||'');}
 $('startDate').addEventListener('change',()=>{if(busy)return;$('results').hidden=true;$('empty').hidden=false;try{const selection=selectedContacts();$('startDate').setAttribute('aria-invalid','false');$('status').textContent=`${selection.qsos.length} valid QSOs in date selection. ${selection.filtered} QSOs excluded by date. Convert to update the export.`;$('resultBadge').textContent='RECONVERT TO UPDATE';renderSummits();}catch(e){$('startDate').setAttribute('aria-invalid','true');$('locators').hidden=true;$('status').textContent=e.message;}});
-function renderSummits(){const refs=[...new Set(selectedContacts().qsos.flatMap(q=>[q.summit,q.other]).filter(Boolean))].filter(ref=>!$('enrich').checked||failedLookups.has(ref));$('locators').hidden=!refs.length;$('summitRows').replaceChildren(...refs.map((ref,index)=>{const row=document.createElement('label');row.className='summit';const text=document.createElement('span');text.id=`locator-label-${index}`;text.textContent=ref+(summits.get(ref)?.name?` · ${summits.get(ref).name}`:'');const input=document.createElement('input');input.placeholder='Locator';input.value=summits.get(ref)?.locator||'';input.setAttribute('aria-labelledby',text.id);input.pattern='[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?';const error=document.createElement('span');error.id=`locator-error-${index}`;error.className='locator-error';input.setAttribute('aria-describedby',error.id);function validate(){const value=input.value.trim();const invalid=!validLocator(value);input.setAttribute('aria-invalid',String(invalid));error.textContent=invalid?(value?'Invalid locator. Use a Maidenhead locator such as IO81XW.':'Enter a Maidenhead locator, such as IO81XW.'):' ';error.hidden=!invalid;}validate();input.addEventListener('input',()=>{summits.set(ref,{locator:input.value.trim().toUpperCase()});validate();$('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='RECONVERT TO UPDATE';});const field=document.createElement('span');field.className='locator-field';field.append(input,error);row.append(text,field);return row;}));}
+function renderSummits(){const refs=[...new Set(selectedContacts().qsos.flatMap(q=>[q.summit,q.other]).filter(Boolean))].filter(ref=>!$('enrich').checked||failedLookups.has(ref));$('locators').hidden=!refs.length;$('summitRows').replaceChildren(...refs.map((ref,index)=>{const row=document.createElement('label');row.className='summit';const text=document.createElement('span');text.id=`locator-label-${index}`;text.textContent=ref+(summits.get(ref)?.name?` · ${summits.get(ref).name}`:'');const input=document.createElement('input');input.placeholder='Locator';input.value=summits.get(ref)?.locator||'';input.setAttribute('aria-labelledby',text.id);input.pattern='[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?';const error=document.createElement('span');error.id=`locator-error-${index}`;error.className='locator-error';input.setAttribute('aria-describedby',error.id);function validate(){const value=input.value.trim();const required=selectedContacts().qsos.some(q=>q.summit===ref);const invalid=value?!validLocator(value):required;input.setAttribute('aria-invalid',String(invalid));error.textContent=invalid?(value?'Invalid locator. Use a Maidenhead locator such as IO81XW.':'Enter a Maidenhead locator, such as IO81XW.'):' ';error.hidden=!invalid;}validate();input.addEventListener('input',()=>{summits.set(ref,{locator:input.value.trim().toUpperCase()});validate();$('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='RECONVERT TO UPDATE';});const field=document.createElement('span');field.className='locator-field';field.append(input,error);row.append(text,field);return row;}));}
 $('enrich').addEventListener('change',()=>{if(!busy)renderSummits();});
 $('file').addEventListener('change',async e=>{await readFiles(e.target.files);});
 $('drop').addEventListener('dragover',e=>{e.preventDefault();if(!busy)$('drop').classList.add('drag');});$('drop').addEventListener('dragleave',()=>$('drop').classList.remove('drag'));$('drop').addEventListener('drop',async e=>{e.preventDefault();$('drop').classList.remove('drag');await readFiles(e.dataTransfer.files);});
