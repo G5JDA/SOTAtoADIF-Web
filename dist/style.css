@@ -63,14 +63,6 @@ a {
   color: var(--muted);
 }
 
-i {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: #479e74;
-  border-radius: 50%;
-  margin-right: 7px;
-}
 
 main {
   max-width: 1168px;
