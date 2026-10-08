@@ -51,3 +51,7 @@ Any log can be used alone. Activator + S2S enriches matched activator contacts w
 Chaser verification uses synthetic data only: standalone exports, all-three overlap/new-contact handling, S2S + chaser after activator removal, ambiguity/conflicts, and missing own fields. Browser checks covered standalone conversion, role/removal labels, keyboard focus and mobile themes on port 8005. Private sample logs and derivatives are not included.
 
 The DOM regression suite exercises date filtering and reviewed suffix merging across all seven non-empty combinations of activator, S2S and chaser uploads. It checks cutoff inclusion, empty selections, clearing the date, disabling merging, separate home/overseas exports, exclusion of plain callsign contacts from additional files, accurate contact counts and preserved S2S/locator fields. Matching summaries describe full inputs before date selection; export counts describe selected contacts.
+
+## Search and sharing metadata
+
+The HTML includes a descriptive title, description, Open Graph and Twitter summary metadata, plus WebApplication structured data. The manifest description covers all three supported log types. Metadata is static and contains no uploaded log data. Before a future authorized public launch, add the chosen absolute HTTPS canonical URL and og:url, and an absolute social-preview image URL if a dedicated image is created. No public domain or localhost canonical is assumed. Metadata alone does not guarantee search indexing or rich results.
