@@ -55,7 +55,7 @@ export function filterByDate(qsos, startDate='') {
   if (!startDate) return {qsos, filtered:0};
   const date = new Date(startDate+'T00:00:00Z');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==startDate) {
-    throw new Error('Choose a valid start date or clear the date field.');
+    throw new Error('Choose a valid start date in YYYY-MM-DD format or clear the date field.');
   }
   const cutoff = startDate.replaceAll('-', '');
   const included = qsos.filter(q=>q.date>=cutoff);
