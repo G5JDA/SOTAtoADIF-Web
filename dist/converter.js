@@ -17,6 +17,7 @@ const bands=[[.1357,.1378,'2190m'],[.472,.479,'630m'],[.501,.504,'560m'],[1.8,2,
 export function frequencyToBand(s){const m=s.match(/^(\d+(?:\.\d+)?)\s*MHz$/i);return m?bands.find(([a,b])=>+m[1]>=a&&+m[1]<=b)?.[2]||'':'';}
 // Preserve SOTA's generic DATA mode as an intentional extension to ADIF's mode enumeration.
 export function modeFor(s){s=s.toUpperCase();if(s==='DATA')return {mode:s};if(s==='DV')s='DIGITALVOICE';if(s in modes)return {mode:s};for(const [mode,subs] of Object.entries(modes))if(subs?.includes(s))return {mode,submode:s};return null;}
+export const validSummitRef=s=>/^[A-Z0-9]+\/[A-Z0-9]+-\d{3}$/i.test(s);
 export function readLog(text,{chaser=false}={}){const warnings=[],qsos=[];parseCSV(text).forEach((r,index)=>{const line=index+1;if(r.every(x=>!x.trim())||r[0]==='Version')return;
   if(r[0]!=='V2'||r.length<10){warnings.push(`Row ${line}: expected a SOTA V2 record with 10 columns.`);return;}
   const [version,station,summit,date,time,frequency,mode,call,other,comment]=r.map(x=>x.trim());
@@ -25,10 +26,11 @@ export function readLog(text,{chaser=false}={}){const warnings=[],qsos=[];parseC
   if(!d||dt.getUTCFullYear()!==+d[3]||dt.getUTCMonth()!==+d[2]-1||dt.getUTCDate()!==+d[1]||!t||+t[1]>23||+t[2]>59||+(t[3]||0)>59){warnings.push(`Row ${line}: invalid date or UTC time.`);return;}
   const band=frequencyToBand(frequency),mapped=modeFor(mode);
   if(!station||!call||(!chaser&&!summit)||(chaser&&!other)||!band||!mapped){warnings.push(`Row ${line}: missing callsign/summit, unsupported frequency, or unknown mode (${frequency}, ${mode}).`);return;}
+  if((summit&&!validSummitRef(summit))||(other&&!validSummitRef(other))){warnings.push(`Row ${line}: invalid summit reference; use a reference such as G/CE-001.`);return;}
   qsos.push({line,chaser,station:station.toUpperCase(),summit:summit.toUpperCase(),date:d[3]+d[2]+d[1],time:t[1]+t[2]+(t[3]||''),band,...mapped,call:call.toUpperCase(),other:other.toUpperCase(),comment});
 });return {qsos,warnings};}
 export const validLocator=s=>/^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/i.test(s);
-export async function lookupSummit(ref){const response=await fetch('https://api2.sota.org.uk/api/summits/'+ref,{credentials:'omit',signal:AbortSignal.timeout(15000)});if(!response.ok||response.status===204)throw new Error('Summit not found');const data=await response.json();if(!validLocator(data.locator||''))throw new Error('No valid locator returned');return {...data,locator:data.locator.toUpperCase()};}
+export async function lookupSummit(ref){ref=ref.trim().toUpperCase();if(!validSummitRef(ref))throw new Error('Invalid summit reference');const path=ref.split('/').map(encodeURIComponent).join('/');const response=await fetch('https://api2.sota.org.uk/api/summits/'+path,{credentials:'omit',signal:AbortSignal.timeout(15000)});if(!response.ok||response.status===204)throw new Error('Summit not found');const data=await response.json();if(!validLocator(data.locator||''))throw new Error('No valid locator returned');return {...data,locator:data.locator.toUpperCase()};}
 const field=(key,value)=>value?`<${key}:${Array.from(value).length}>${value}`:'';
 export function makeOutputs(qsos,summits,now=new Date()){const groups=new Map(),skipped=[],warnings=[];
   for(const q of qsos){const grid=summits.get(q.summit)?.locator;if(q.summit&&!validLocator(grid||'')){skipped.push(`Row ${q.line}: ${q.summit} has no locator; QSO excluded.`);continue;}
