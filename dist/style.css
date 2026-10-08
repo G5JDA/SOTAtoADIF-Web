@@ -368,7 +368,7 @@ footer a {
   border-radius: 4px;
   padding: 8px 12px;
   color: var(--green);
-  font-size: 11px;
+  font-size: calc(1rem * var(--reading-scale));
 }
 
 pre {
