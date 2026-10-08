@@ -8,7 +8,7 @@ All CSV parsing, validation, ADIF generation and downloads happen in the browser
 
 Supports the original implemented activator workflow, SOTA V2 CSV, UTC times, original band/mode mappings, summit locator enrichment and one ADIF file per station callsign. Chaser imports are supported. Optional S2S imports can enrich activator contacts or be converted alone. Fixes upstream duplicate MY_SOTA_REF and wrong S2S comment. Invalid dates/modes/frequencies and missing locators are reported instead of silently producing invalid output. Files without valid QSOs produce no download.
 
-SOTA's generic `DATA` mode is accepted in all log types and exported unchanged as `<MODE:4>DATA`, without assigning a specific digital mode or submode. This is an intentional extension outside ADIF's standard mode enumeration; compatibility depends on the receiving logger. It remains `DATA` when matching, filtering and merging contacts.
+SOTA's generic `DATA` mode is accepted in all log types and exported unchanged as `<MODE:4>DATA`, without assigning a specific digital mode or submode. This is an intentional extension outside ADIF's standard mode enumeration; other logging programs may reject these contacts or require their mode to be corrected before importing. The page includes a compatibility note for users. It remains `DATA` when matching, filtering and merging contacts.
 
 ## Hosting preference
 
