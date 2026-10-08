@@ -115,3 +115,46 @@ test('all three shared uploads deduplicate overlaps and retain additional chaser
  await ui.get('convert').onclick();assert.equal(ui.get('stats').children[0].children[0].textContent,2);assert.match(ui.get('chaserSummary').textContent,/1 additional/);
  ui.get('clearMain').listeners.click();await ui.get('convert').onclick();assert.equal(ui.get('stats').children[0].children[0].textContent,2);ui.get('clearS2S').listeners.click();await ui.get('convert').onclick();assert.equal(ui.get('stats').children[0].children[0].textContent,2);assert.doesNotMatch(ui.get('preview').textContent,/<MY_SOTA_REF|<MY_GRIDSQUARE/);
 });
+
+// Synthetic matrix: old/new contacts, home/overseas suffixes, plain callsign,
+// overlapping S2S/chaser records, and one additional chaser-only contact.
+for(const [label,roles] of [
+  ['activator',['activator']],['S2S',['s2s']],['chaser',['chaser']],
+  ['activator + S2S',['activator','s2s']],['activator + chaser',['activator','chaser']],
+  ['S2S + chaser',['s2s','chaser']],['all three',['activator','s2s','chaser']]
+])test(`date selection and reviewed suffix merging: ${label}`,async()=>{
+  const ui=app();
+  const contact=(station,date,time,role)=>`V2,${station},${role==='chaser'?'':'G/ZZ-001'},${date},${time},144MHz,FM,ZZ9BBB,${role==='activator'?'':'G/ZZ-002'},Synthetic${role==='s2s'?',0,0':role==='chaser'?',0':''}\n`;
+  const rows=[['ZZ1AAA/P','31/12/2024','09:00'],['EA/ZZ1AAA/QRP','31/12/2024','10:00'],['ZZ1AAA/P','01/01/2025','09:00'],['EA/ZZ1AAA/QRP','01/01/2025','10:00'],['ZZ1AAA','01/01/2025','11:00']];
+  const files=roles.map(role=>({name:`synthetic_${role}.csv`,text:async()=>rows.map(r=>contact(...r,role)).join('')+(role==='chaser'?contact('ZZ1AAA/M','01/01/2025','12:00',role):'')}));
+  await ui.get('file').listeners.change({target:{files:files}});
+  ui.get('startDate').value='2025-01-01';ui.get('startDate').listeners.change();
+  ui.get('mergeEnabled').checked=true;ui.get('mergeEnabled').listeners.change();
+  for(const mapping of ui.get('mergeRows').children){const checkbox=mapping.children[0].children[0];checkbox.checked=true;checkbox.listeners.change();}
+  await ui.get('convert').onclick();
+  const extra=roles.includes('chaser')?1:0;
+  assert.equal(ui.get('stats').children[0].children[0].textContent,3+extra);
+  assert.equal(ui.get('stats').children[2].children[0].textContent,2);
+  assert.equal(ui.get('stats').children[3].children[0].textContent,0);
+  assert.equal(ui.get('resultBadge').textContent,'ALL SELECTED CONTACTS EXPORTED');
+  const buttons=ui.get('downloads').children.map(download=>download.children[1]);
+  for(const button of buttons)button.click();
+  const texts=await Promise.all(ui.downloads.map(blob=>blob.text()));
+  assert.ok(texts.every(text=>!text.includes('<QSO_DATE:8>20241231')));
+  const homeIndex=buttons.findIndex(button=>button.getAttribute('aria-label')==='Download merged ADIF for ZZ1AAA');
+  const overseasIndex=buttons.findIndex(button=>button.getAttribute('aria-label')==='Download merged ADIF for EA/ZZ1AAA');
+  assert.ok(homeIndex>=0&&overseasIndex>=0);
+  assert.equal((texts[homeIndex].match(/<EOR>/g)||[]).length,1+extra);
+  assert.equal((texts[overseasIndex].match(/<EOR>/g)||[]).length,1);
+  assert.match(texts[homeIndex],/<STATION_CALLSIGN:6>ZZ1AAA/);
+  assert.match(texts[overseasIndex],/<STATION_CALLSIGN:9>EA\/ZZ1AAA/);
+  assert.doesNotMatch(texts[homeIndex],/<TIME_ON:4>1100/); // plain station excluded
+  if(roles.includes('s2s')||roles.includes('chaser'))assert.match(texts[homeIndex],/<SOTA_REF:8>G\/ZZ-002<GRIDSQUARE:6>IO81XW/);
+  if(roles.length===1&&roles[0]==='chaser')assert.ok(texts.every(text=>!/<MY_SOTA_REF|<MY_GRIDSQUARE/.test(text)));
+  ui.get('startDate').value='2025-01-02';ui.get('startDate').listeners.change();await ui.get('convert').onclick();
+  assert.equal(ui.get('results').hidden,true);assert.equal(ui.get('resultBadge').textContent,'NO CONTACTS IN DATE SELECTION');
+  ui.get('startDate').value='';ui.get('startDate').listeners.change();await ui.get('convert').onclick();
+  assert.equal(ui.get('stats').children[0].children[0].textContent,5+extra);
+  ui.get('mergeEnabled').checked=false;ui.get('mergeEnabled').listeners.change();await ui.get('convert').onclick();
+  assert.ok(ui.get('downloads').children.every(download=>!download.children[1].getAttribute('aria-label').includes('merged')));
+});
