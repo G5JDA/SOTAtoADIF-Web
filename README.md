@@ -6,7 +6,7 @@ Serve `dist/` with any static web server (e.g. `python3 -m http.server 8000 --bi
 
 All CSV parsing, validation, ADIF generation and downloads happen in the browser. Optional summit enrichment calls api2.sota.org.uk directly, passing summit references only. Successful summit names and locators are cached in localStorage for 24 hours and reused across files and refreshes. Failed lookups are not cached. If browser storage is unavailable, an in-memory cache is used. No conversion backend, uploads, cookies, analytics, external assets or dependencies. Disable enrichment and enter locators manually for offline conversion after loading the page.
 
-Supports the original implemented activator workflow, SOTA V2 CSV, UTC times, original band/mode mappings, summit locator enrichment and one ADIF file per station callsign. Chaser mode and separate S2S merging were unimplemented upstream and remain outside scope. Fixes upstream duplicate MY_SOTA_REF and wrong S2S comment. Invalid dates/modes/frequencies and missing locators are reported instead of silently producing invalid output. Files without valid QSOs produce no download.
+Supports the original implemented activator workflow, SOTA V2 CSV, UTC times, original band/mode mappings, summit locator enrichment and one ADIF file per station callsign. Chaser mode remains outside scope. Optional S2S imports can enrich activator contacts or be converted alone. Fixes upstream duplicate MY_SOTA_REF and wrong S2S comment. Invalid dates/modes/frequencies and missing locators are reported instead of silently producing invalid output. Files without valid QSOs produce no download.
 
 ## Hosting preference
 
@@ -33,3 +33,11 @@ Expand “Additional callsign exports” and enable merging to review mappings. 
 Automated conversion and DOM tests cover inclusive UTC date boundaries (including year changes and leap days), empty selections, mixed home/overseas callsigns, unchanged ADIF contact fields, distinct original/merged filenames, accessible mapping/download names, and control locking during asynchronous lookups. Run `node --test tests/*.test.js`.
 
 Manual browser checks covered date entry and focus, keyboard merge toggling and tab navigation, all four light/dark and normal/high-contrast combinations, desktop and 390px mobile layouts, and merge mappings at 200% reading text size. Synthetic logs verified filtered and empty selections and separate home/overseas merged downloads. Browser automation did not confirm actual file download completion; generated download contents are tested in the DOM suite. These checks do not constitute a WCAG conformance claim.
+
+## S2S imports
+
+Use the main picker for an activator or standalone S2S V2 CSV, or expand “S2S enrichment (optional)” to add a separate S2S export. Its header and trailing points columns are accepted. With both files, the activator list is authoritative: matches enrich existing contacts; unmatched S2S rows are not appended. Matching uses normalized station/worked callsigns, own summit, UTC date/time, band, mode and submode. Comments are preserved from the activator file. Repeated matching keys are reported as ambiguous; conflicting worked summit references retain the original. The summary applies to the full input before date filtering.
+
+The worked summit becomes SOTA_REF; cached lookup or manual entry supplies GRIDSQUARE. A missing worked locator does not exclude the contact. Date filtering and optional suffix merging use the enriched contacts. Removing or replacing the S2S file invalidates prior results. Both pickers and the removal control lock during conversion. No logs are uploaded or stored persistently, and private example logs must never be committed or used to derive test fixtures.
+
+S2S verification used synthetic fixtures only. Tests cover standalone/both-file imports, removal and read-failure recovery, duplicate prevention, ambiguity/conflicts, date filtering, merged exports, locator enrichment and failed DX lookups. Browser checks verified matching counts, manual locators, keyboard focus, all four themes and mobile layout on local port 8003.

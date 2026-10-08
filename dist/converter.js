@@ -64,3 +64,31 @@ export function makeMergedOutputs(qsos,summits,mappings,now=new Date()) {
   return makeOutputs(merged,summits,now).files.map(file=>({...file,merged:true,
     name:file.name.replace('_SOTAtoADIF_','_suffixes-merged_SOTAtoADIF_')}));
 }
+
+export function readS2S(text) {
+  const rows=parseCSV(text);
+  const warnings=[];
+  for(let index=0;index<rows.length;index++) {
+    const row=rows[index];
+    if(row.every(value=>!value.trim())||row[0]==='Version')continue;
+    if(row.length<10||!row[8]?.trim())warnings.push(`S2S row ${index+1}: worked summit is required.`);
+  }
+  const log=readLog(text);
+  return {qsos:log.qsos.filter(q=>q.other),warnings:[...log.warnings.map(w=>'S2S '+w),...warnings]};
+}
+export function joinS2S(activator,s2s) {
+  const key=q=>JSON.stringify([q.station,q.summit,q.date,q.time.padEnd(6,'0'),q.band,q.mode,q.submode||'',q.call]);
+  const groups=qsos=>{const map=new Map();for(const q of qsos){const k=key(q);if(!map.has(k))map.set(k,[]);map.get(k).push(q);}return map;};
+  const main=groups(activator),extra=groups(s2s),warnings=[];
+  let enriched=0,unmatched=0,ambiguous=0,conflicts=0;
+  const additions=new Map();
+  for(const [k,records] of extra) {
+    const contacts=main.get(k)||[];
+    if(!contacts.length){unmatched+=records.length;warnings.push(`S2S row ${records[0].line}: no matching activator contact; not added.`);continue;}
+    if(contacts.length!==1||records.length!==1){ambiguous+=records.length;warnings.push(`S2S row ${records[0].line}: ambiguous repeated contact; no enrichment applied.`);continue;}
+    const q=contacts[0],ref=records[0].other;
+    if(q.other&&q.other!==ref){conflicts++;warnings.push(`S2S row ${records[0].line}: worked summit conflicts with activator row ${q.line}; original reference retained.`);continue;}
+    additions.set(q,ref);enriched++;
+  }
+  return {qsos:activator.map(q=>additions.has(q)?{...q,other:additions.get(q)}:{...q}),warnings,enriched,unmatched,ambiguous,conflicts};
+}

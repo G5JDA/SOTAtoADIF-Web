@@ -984,3 +984,23 @@ input[type=file] {
   border: 1px solid currentColor;
   border-radius: 6px;
 }
+
+#s2sFile {
+  position: static;
+  width: 100%;
+  max-width: 100%;
+  opacity: 1;
+  height: auto;
+  min-height: 44px;
+  font: inherit;
+}
+
+#s2sFile::file-selector-button,#clearS2S {
+  min-height: 44px;
+  padding: 0.5em 0.75em;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font: inherit;
+}

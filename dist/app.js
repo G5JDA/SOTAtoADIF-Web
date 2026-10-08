@@ -1,14 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs} from './converter.js';
+import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S} from './converter.js';
 import {createSummitLookup} from './summit-cache.js';
 let summitStorage;
 try{summitStorage=localStorage;}catch{}
 const cachedSummitLookup=createSummitLookup(lookupSummit,summitStorage);
-const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),failedLookups=new Set(),loadId=0,busy=false,mergeMappings=new Map();
-function setBusy(value){busy=value;$('convert').setAttribute('aria-disabled',String(value));$('file').disabled=value;$('enrich').disabled=value;$('startDate').disabled=value;$('mergeEnabled').disabled=value;for(const input of document.querySelectorAll('#mergeRows input'))input.disabled=value;for(const input of document.querySelectorAll('#summitRows input'))input.disabled=value;$('drop').setAttribute('aria-disabled',String(value));}
-async function readFile(file){if(busy||!file)return;setBusy(true);$('results').hidden=true;try{load(await file.text(),file.name);}catch(e){loaded=null;$('convert').disabled=true;$('empty').hidden=false;$('locators').hidden=true;$('resultBadge').textContent='FILE READ FAILED';$('status').textContent=`Could not read ${file.name}. Select the file again or export a new CSV. ${e.message}`;warn([]);}finally{setBusy(false);}}
+const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),failedLookups=new Set(),loadId=0,busy=false,mergeMappings=new Map(),mainLog=null,s2sLog=null;
+function setBusy(value){busy=value;$('convert').setAttribute('aria-disabled',String(value));$('file').disabled=value;$('s2sFile').disabled=value;$('clearS2S').disabled=value||!s2sLog;$('enrich').disabled=value;$('startDate').disabled=value;$('mergeEnabled').disabled=value;for(const input of document.querySelectorAll('#mergeRows input'))input.disabled=value;for(const input of document.querySelectorAll('#summitRows input'))input.disabled=value;$('drop').setAttribute('aria-disabled',String(value));}
+async function readFile(file,additional=false){
+  if(busy||!file)return;setBusy(true);$('results').hidden=true;
+  try {
+    const text=await file.text();
+    const log=additional?readS2S(text):readLog(text);
+    if(additional){s2sLog=log;$('s2sName').textContent=file.name;}
+    else{mainLog=log;$('fileLabel').textContent=file.name;}
+    rebuildLog();
+  }catch(e){
+    if(additional){s2sLog=null;$('s2sName').textContent='S2S file could not be read.';}else mainLog=null;
+    rebuildLog();$('resultBadge').textContent='FILE READ FAILED';
+    $('status').textContent=`Could not read ${file.name}. Select the file again or export a new CSV. ${e.message}`;
+  }finally{setBusy(false);}
+}
+$('s2sFile').addEventListener('change',e=>readFile(e.target.files[0],true));
+$('clearS2S').addEventListener('click',()=>{if(busy)return;s2sLog=null;$('s2sFile').value='';$('s2sName').textContent='No additional S2S file selected.';rebuildLog();setBusy(false);});
 function warn(messages){$('warningBox').hidden=!messages.length;$('warningBox').open=!!messages.length;$('warningTitle').textContent=`${messages.length} warning${messages.length===1?'':'s'} · review excluded rows and lookups`;$('warnings').replaceChildren(...messages.map(message=>{const li=document.createElement('li');li.textContent=message;return li;}));}
-function load(text,name){try{loaded=readLog(text);loadId++;summits=new Map();failedLookups=new Set();mergeMappings=new Map();renderMergeOptions();$('fileLabel').textContent=name;$('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='READY TO CONVERT';$('status').textContent=`${loaded.qsos.length} valid QSOs found. ${loaded.warnings.length} warnings; review warning details below. Times are UTC.`;$('convert').disabled=!loaded.qsos.length;warn(loaded.warnings);renderSummits();}catch(e){loaded=null;$('convert').disabled=true;$('results').hidden=true;$('empty').hidden=false;$('locators').hidden=true;$('fileLabel').textContent=name;$('status').textContent=e.message;warn([]);}}
+function rebuildLog(){
+  loaded=mainLog||s2sLog;
+  const joined=mainLog&&s2sLog?joinS2S(mainLog.qsos,s2sLog.qsos):null;
+  if(joined)loaded={qsos:joined.qsos,warnings:mainLog.warnings,lookupWarnings:[...s2sLog.warnings,...joined.warnings]};
+  $('s2sSummary').hidden=!s2sLog;
+  $('s2sSummary').textContent=joined?`${joined.enriched} S2S contacts matched; ${joined.unmatched} unmatched, ${joined.ambiguous} ambiguous, ${joined.conflicts} conflicting. Activator contacts remain the export list.`:s2sLog?`${s2sLog.qsos.length} S2S contacts available for standalone conversion.`:'';
+  loadId++;summits=new Map();failedLookups=new Set();mergeMappings=new Map();renderMergeOptions();
+  $('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent=loaded?'READY TO CONVERT':'WAITING FOR LOG';
+  $('status').textContent=loaded?`${loaded.qsos.length} valid QSOs found. Times are UTC. Review any warning details below.`:'Choose an activator or S2S CSV file to get started.';
+  $('convert').disabled=!loaded?.qsos.length;warn([...(loaded?.warnings||[]),...(loaded?.lookupWarnings||[])]);renderSummits();
+}
 function invalidateMerge(){ $('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='RECONVERT TO UPDATE';$('status').textContent='Export options changed. Convert again to update downloads.'; }
 function renderMergeOptions(){
   $('mergePanel').hidden=!$('mergeEnabled').checked;
@@ -34,7 +59,7 @@ function renderSummits(){const refs=[...new Set(selectedContacts().qsos.flatMap(
 $('enrich').addEventListener('change',()=>{if(!busy)renderSummits();});
 $('file').addEventListener('change',async e=>{const file=e.target.files[0];await readFile(file);});
 $('drop').addEventListener('dragover',e=>{e.preventDefault();if(!busy)$('drop').classList.add('drag');});$('drop').addEventListener('dragleave',()=>$('drop').classList.remove('drag'));$('drop').addEventListener('drop',async e=>{e.preventDefault();$('drop').classList.remove('drag');await readFile(e.dataTransfer.files[0]);});
-$('convert').onclick=async()=>{if(!loaded||$('convert').getAttribute('aria-disabled')==='true')return;const id=loadId;const current=loaded;const warnings=[...current.warnings];setBusy(true);$('results').hidden=true;$('status').textContent='Preparing summit data…';try{
+$('convert').onclick=async()=>{if(!loaded||$('convert').getAttribute('aria-disabled')==='true')return;const id=loadId;const current=loaded;const warnings=[...current.warnings,...(current.lookupWarnings||[])];setBusy(true);$('results').hidden=true;$('status').textContent='Preparing summit data…';try{
   const {qsos,filtered}=selectedContacts();
   if($('mergeEnabled').checked)for(const [source,target] of mergeMappings){if(!/^[A-Z0-9]+(?:\/[A-Z0-9]+)*$/.test(target)||!/[A-Z]/.test(target)||!/[0-9]/.test(target)||target===source)throw new Error(`Review the destination for ${source}: enter a different operating callsign or deselect this mapping.`);}
   if(!qsos.length){$('empty').hidden=false;$('resultBadge').textContent='NO CONTACTS IN DATE SELECTION';$('status').textContent=`No valid QSOs match the date selection. ${filtered} QSOs excluded by date. Clear or change the date to include contacts. ${current.warnings.length} invalid rows; review warnings.`;warn(warnings);return;}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs} from '../dist/converter.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});
 test('validates rows without losing valid contacts',()=>{const {qsos,warnings}=readLog(row+'\nV2,too,short\n'+row.replace('06/10/2026','31/02/2026'));assert.equal(qsos.length,1);assert.equal(warnings.length,2);assert.equal(qsos[0].date,'20261006');});
@@ -44,4 +44,19 @@ test('date boundaries span UTC year changes and leap days',()=>{
  assert.deepEqual(filterByDate(qsos,'2024-02-29').qsos,qsos.slice(2));
  assert.throws(()=>filterByDate(qsos,'2023-02-29'));
  assert.equal(makeMergedOutputs([],new Map(),new Map()).length,0);
+});
+
+test('S2S imports header and points columns, enriches without duplicates, and preserves original comments',()=>{
+ const base=readLog(row.replace('G/WB-001','')).qsos;
+ const s2s=readS2S('Version,YourCallsign,Your Summit,Date,Time,Band,Mode,OtherCallsign,OtherSummit,Comments,ChaserPoints,ActivatorPoints\n'+row+',1,1');
+ assert.equal(s2s.qsos.length,1);assert.equal(s2s.warnings.length,0);
+ const joined=joinS2S(base,s2s.qsos);assert.equal(joined.qsos.length,1);assert.equal(joined.enriched,1);assert.equal(joined.qsos[0].other,'G/WB-001');assert.equal(joinS2S(base,readS2S(row.replace('10:15','10:15:00')).qsos).enriched,1);assert.equal(joined.qsos[0].comment,base[0].comment);assert.equal(base[0].other,'');
+});
+test('S2S unmatched, ambiguous, and conflicting matches never add or overwrite contacts',()=>{
+ const base=readLog(row).qsos,other=readLog(row.replace('G/WB-001','G/XX-999')).qsos;
+ assert.equal(joinS2S(base,other).conflicts,1);
+ assert.equal(joinS2S(base,[...other,...other]).ambiguous,2);
+ assert.equal(joinS2S([...base,...base],other).ambiguous,1);
+ assert.equal(joinS2S(base,readLog(row.replace('10:15','11:15')).qsos).unmatched,1);
+ assert.equal(readS2S(row.replace('G/WB-001','')).qsos.length,0);
 });
