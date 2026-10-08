@@ -105,3 +105,12 @@ test('chaser standalone omits unknown own fields and joins add only nonmatching 
  assert.equal(joinChaser(main,[...chaser,...chaser]).ambiguous,2);
  assert.equal(joinChaser(readLog(row).qsos,[{...chaser[0],other:'G/ZZ-999'}]).conflicts,1);
 });
+
+test('invalid worked locator is omitted with a warning without losing the contact',()=>{
+  const qsos=readLog('V2,G1ABC,G/XX-001,08/10/2026,12:00,14MHz,FM,G2XYZ,G/XX-002,Synthetic').qsos;
+  const result=makeOutputs(qsos,new Map([['G/XX-001',{locator:'IO81XW'}],['G/XX-002',{locator:'INVALID'}]]));
+  assert.equal(result.files[0].count,1);
+  assert.equal(result.skipped.length,0);
+  assert.doesNotMatch(result.files[0].text,/<GRIDSQUARE/);
+  assert.match(result.warnings[0],/GRIDSQUARE omitted, contact retained/);
+});

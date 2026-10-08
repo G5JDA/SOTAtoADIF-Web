@@ -30,14 +30,16 @@ export function readLog(text,{chaser=false}={}){const warnings=[],qsos=[];parseC
 export const validLocator=s=>/^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/i.test(s);
 export async function lookupSummit(ref){const response=await fetch('https://api2.sota.org.uk/api/summits/'+ref,{credentials:'omit',signal:AbortSignal.timeout(15000)});if(!response.ok||response.status===204)throw new Error('Summit not found');const data=await response.json();if(!validLocator(data.locator||''))throw new Error('No valid locator returned');return {...data,locator:data.locator.toUpperCase()};}
 const field=(key,value)=>value?`<${key}:${Array.from(value).length}>${value}`:'';
-export function makeOutputs(qsos,summits,now=new Date()){const groups=new Map(),skipped=[];
+export function makeOutputs(qsos,summits,now=new Date()){const groups=new Map(),skipped=[],warnings=[];
   for(const q of qsos){const grid=summits.get(q.summit)?.locator;if(q.summit&&!validLocator(grid||'')){skipped.push(`Row ${q.line}: ${q.summit} has no locator; QSO excluded.`);continue;}
+    const workedGrid=summits.get(q.other)?.locator;
+    if(workedGrid&&!validLocator(workedGrid))warnings.push(`Row ${q.line}: ${q.other} has an invalid worked locator; GRIDSQUARE omitted, contact retained.`);
     const comment=(q.summit?`My SOTA Ref: ${q.summit}.`:'')+(q.other?`${q.summit?' THX S2S, ':''}Your SOTA Ref: ${q.other}.`:'')+(q.comment?` ${q.comment}`:'');
-    const record=field('CALL',q.call)+field('STATION_CALLSIGN',q.station)+field('QSO_DATE',q.date)+field('TIME_ON',q.time)+field('MODE',q.mode)+field('SUBMODE',q.submode)+field('BAND',q.band)+field('MY_SOTA_REF',q.summit)+field('MY_GRIDSQUARE',grid)+field('SOTA_REF',q.other)+field('GRIDSQUARE',summits.get(q.other)?.locator)+field('COMMENT',comment)+'<EOR>\n';
+    const record=field('CALL',q.call)+field('STATION_CALLSIGN',q.station)+field('QSO_DATE',q.date)+field('TIME_ON',q.time)+field('MODE',q.mode)+field('SUBMODE',q.submode)+field('BAND',q.band)+field('MY_SOTA_REF',q.summit)+field('MY_GRIDSQUARE',grid)+field('SOTA_REF',q.other)+field('GRIDSQUARE',validLocator(workedGrid||'')?workedGrid:'')+field('COMMENT',comment)+'<EOR>\n';
     if(!groups.has(q.station))groups.set(q.station,[]);groups.get(q.station).push(record);
   }
   const timestamp=now.toISOString().slice(0,19),stamp=timestamp.replace(/[-:]/g,'').replace('T',' ');
-  const files=[...groups].map(([station,records])=>({station,count:records.length,name:`${station.replace(/[^A-Z0-9-]/g,'-')}_SOTAtoADIF_${timestamp.replace('T','_').replace(/:/g,'-')}.adi`,text:`# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.\n`+field('ADIF_VER','3.1.4')+'\n'+field('PROGRAMID','SOTAtoADIF')+'\n'+field('PROGRAMVERSION','web-1.0.0')+'\n'+field('CREATED_TIMESTAMP',stamp)+'\n<EOH>\n'+records.join('')}));return {files,skipped};
+  const files=[...groups].map(([station,records])=>({station,count:records.length,name:`${station.replace(/[^A-Z0-9-]/g,'-')}_SOTAtoADIF_${timestamp.replace('T','_').replace(/:/g,'-')}.adi`,text:`# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.\n`+field('ADIF_VER','3.1.4')+'\n'+field('PROGRAMID','SOTAtoADIF')+'\n'+field('PROGRAMVERSION','web-1.0.0')+'\n'+field('CREATED_TIMESTAMP',stamp)+'\n<EOH>\n'+records.join('')}));return {files,skipped,warnings};
 }
 
 // Dates are compared in the same UTC calendar format as QSO_DATE.
