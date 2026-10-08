@@ -182,3 +182,19 @@ test('custom colour feedback reports poor contrast and reset disables custom col
  const ui=app();ui.get('readingText').value='#ffffff';ui.get('readingText').listeners.change();ui.get('readingBackground').value='#ffffff';ui.get('readingBackground').listeners.change();ui.get('readingCustom').checked=true;ui.get('readingCustom').listeners.change();
  assert.match(ui.get('readingContrast').textContent,/1.00:1.*Below/);ui.get('readingReset').listeners.click();assert.equal(ui.document.documentElement.dataset.readingCustom,'false');
 });
+
+test('failed and duplicate uploads retain manual locators and selected merge mappings',async()=>{
+  const ui=app();const text='V2,G1ABC/P,G/XX-001,08/10/2026,12:00,14MHz,FM,G2XYZ,,Synthetic';
+  ui.get('enrich').checked=false;await ui.upload(text);
+  const locator=ui.get('summitRows').children[0].children[1].children[0];locator.value='IO81XW';locator.listeners.input();
+  ui.get('mergeEnabled').checked=true;ui.get('mergeEnabled').listeners.change();
+  const mapping=ui.get('mergeRows').children[0];const check=mapping.children[0].children[0];check.checked=true;check.listeners.change();
+  const file={name:'synthetic_activator.csv',text:async()=>text};
+  for(const files of [[{name:'broken.csv',text:async()=>{throw Error('Read failed');}}],[file,file]]){
+    await ui.get('file').listeners.change({target:{files}});
+    assert.equal(ui.get('summitRows').children[0].children[1].children[0].value,'IO81XW');
+    assert.equal(locator.value,'IO81XW');assert.equal(check.checked,true);
+    await ui.get('convert').onclick();assert.equal(ui.get('downloads').children.length,2);
+    assert.match(ui.get('preview').textContent,/<MY_GRIDSQUARE:6>IO81XW/);
+  }
+});

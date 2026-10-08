@@ -20,7 +20,7 @@ async function readFiles(files){
     if(pending.has('chaser')){chaserLog=pending.get('chaser').log;chaserName=pending.get('chaser').name;}
     rebuildLog();
   }catch(e){
-    rebuildLog();$('resultBadge').textContent='FILE READ FAILED';
+    $('empty').hidden=false;$('convert').disabled=!loaded?.qsos.length;$('resultBadge').textContent='FILE READ FAILED';
     $('status').textContent=`Could not read ${currentName}. Select the file again or export a new CSV. ${e.message} Previously loaded files were retained.`;
   }finally{setBusy(false);$('file').value='';}
 }
