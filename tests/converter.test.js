@@ -130,3 +130,15 @@ test('malformed summit references are rejected before export or API requests',as
     await lookupSummit(' g/xx-002 ');assert.deepEqual(requests,['https://api2.sota.org.uk/api/summits/G/XX-002']);
   }finally{globalThis.fetch=originalFetch;}
 });
+
+test('ADI comments flatten line breaks and convert Unicode with visible warnings',()=>{
+  const text='V2,G1ABC,G/XX-001,08/10/2026,12:00,14MHz,FM,G2XYZ,,"Café\nSecond line 😀"';
+  const log=readLog(text);const result=makeOutputs(log.qsos,new Map([['G/XX-001',{locator:'IO81XW'}]]));
+  const match=result.files[0].text.match(/<COMMENT:(\d+)>(.*?)<EOR>/);
+  assert.equal(match[2],'My SOTA Ref: G/XX-001. Cafe Second line ?');
+  assert.equal(Number(match[1]),Buffer.byteLength(match[2],'utf8'));
+  assert.equal(result.warnings.length,1);assert.match(result.warnings[0],/comment converted to ASCII/);
+  assert.equal(log.qsos[0].comment,'Café\nSecond line 😀');
+  const plain=makeOutputs(readLog(text.replace('Café\nSecond line 😀','Plain ASCII <EOR> text')).qsos,new Map([['G/XX-001',{locator:'IO81XW'}]]));
+  assert.equal(plain.warnings.length,0);assert.match(plain.files[0].text,/Plain ASCII <EOR> text/);
+});

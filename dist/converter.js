@@ -31,12 +31,16 @@ export function readLog(text,{chaser=false}={}){const warnings=[],qsos=[];parseC
 });return {qsos,warnings};}
 export const validLocator=s=>/^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/i.test(s);
 export async function lookupSummit(ref){ref=ref.trim().toUpperCase();if(!validSummitRef(ref))throw new Error('Invalid summit reference');const path=ref.split('/').map(encodeURIComponent).join('/');const response=await fetch('https://api2.sota.org.uk/api/summits/'+path,{credentials:'omit',signal:AbortSignal.timeout(15000)});if(!response.ok||response.status===204)throw new Error('Summit not found');const data=await response.json();if(!validLocator(data.locator||''))throw new Error('No valid locator returned');return {...data,locator:data.locator.toUpperCase()};}
+// ADI COMMENT is an ASCII String: preserve readable accents where possible.
+const asciiComment=value=>value.normalize('NFKD').replace(/\p{M}/gu,'').replace(/[\r\n\t]+/g,' ').replace(/[^\x20-\x7E]/gu,'?');
 const field=(key,value)=>value?`<${key}:${Array.from(value).length}>${value}`:'';
 export function makeOutputs(qsos,summits,now=new Date()){const groups=new Map(),skipped=[],warnings=[];
   for(const q of qsos){const grid=summits.get(q.summit)?.locator;if(q.summit&&!validLocator(grid||'')){skipped.push(`Row ${q.line}: ${q.summit} has no locator; QSO excluded.`);continue;}
     const workedGrid=summits.get(q.other)?.locator;
     if(workedGrid&&!validLocator(workedGrid))warnings.push(`Row ${q.line}: ${q.other} has an invalid worked locator; GRIDSQUARE omitted, contact retained.`);
-    const comment=(q.summit?`My SOTA Ref: ${q.summit}.`:'')+(q.other?`${q.summit?' THX S2S, ':''}Your SOTA Ref: ${q.other}.`:'')+(q.comment?` ${q.comment}`:'');
+    const sourceComment=q.comment||'',safeComment=asciiComment(sourceComment);
+    if(safeComment!==sourceComment)warnings.push(`Row ${q.line}: comment converted to ASCII for ADIF; accents removed, line breaks flattened and unsupported characters replaced with ?. Original CSV unchanged.`);
+    const comment=(q.summit?`My SOTA Ref: ${q.summit}.`:'')+(q.other?`${q.summit?' THX S2S, ':''}Your SOTA Ref: ${q.other}.`:'')+(safeComment?` ${safeComment}`:'');
     const record=field('CALL',q.call)+field('STATION_CALLSIGN',q.station)+field('QSO_DATE',q.date)+field('TIME_ON',q.time)+field('MODE',q.mode)+field('SUBMODE',q.submode)+field('BAND',q.band)+field('MY_SOTA_REF',q.summit)+field('MY_GRIDSQUARE',grid)+field('SOTA_REF',q.other)+field('GRIDSQUARE',validLocator(workedGrid||'')?workedGrid:'')+field('COMMENT',comment)+'<EOR>\n';
     if(!groups.has(q.station))groups.set(q.station,[]);groups.get(q.station).push(record);
   }
