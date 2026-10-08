@@ -59,9 +59,7 @@ a {
 
 .badge {
   font-size: 0.875rem;
-  border: 1px solid var(--line);
   padding: 8px 12px;
-  border-radius: 20px;
   color: var(--muted);
 }
 
