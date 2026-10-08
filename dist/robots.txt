@@ -1,0 +1,4 @@
+# SOTAtoADIF browser edition
+# Add a Sitemap directive only when a public HTTPS sitemap exists.
+User-agent: *
+Allow: /

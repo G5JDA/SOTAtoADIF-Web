@@ -1,0 +1,14 @@
+/* TEAM */
+Original project and browser edition: Jack G5JDA
+Original project: https://github.com/G5JDA/SOTAtoADIF
+
+/* PROJECT */
+SOTAtoADIF converts SOTA activator, summit-to-summit and chaser CSV logs to ADIF.
+Contact processing and ADIF generation happen locally in the browser.
+Optional summit enrichment uses the SOTA API; successful lookups are cached
+on the device for 24 hours. Logs are never uploaded by this application.
+
+/* TECHNOLOGY */
+HTML, CSS and JavaScript ES modules. No runtime dependencies or build step.
+Accessibility target: WCAG 2.2 Level AA; no conformance claim is made.
+Browser edition license: AGPL-3.0-or-later. See LICENSE.

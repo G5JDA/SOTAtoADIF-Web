@@ -55,3 +55,5 @@ The DOM regression suite exercises date filtering and reviewed suffix merging ac
 ## Search and sharing metadata
 
 The HTML includes a descriptive title, description, Open Graph and Twitter summary metadata, plus WebApplication structured data. The manifest description covers all three supported log types. Metadata is static and contains no uploaded log data. Before a future authorized public launch, add the chosen absolute HTTPS canonical URL and og:url, and an absolute social-preview image URL if a dedicated image is created. No public domain or localhost canonical is assumed. Metadata alone does not guarantee search indexing or rich results.
+
+`dist/robots.txt` permits crawling and contains no assumed public sitemap URL. Localhost remains inaccessible to public crawlers; robots.txt is not access control. `dist/humans.txt` provides project credits and technology notes and is linked from the HTML head.
