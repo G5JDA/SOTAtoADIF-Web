@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser} from './converter.js';
+import {readLog,lookupSummit,makeOutputs,validLocator,validCallsign,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser} from './converter.js';
 import {createSummitLookup} from './summit-cache.js';
 let summitStorage;
 try{summitStorage=localStorage;}catch{}
@@ -66,7 +66,7 @@ function renderMergeOptions(){
 }
 $('mergeEnabled').addEventListener('change',()=>{if(busy)return;renderMergeOptions();invalidateMerge();});
 renderMergeOptions();
-function validMergeTarget(source,target){return /^[A-Z0-9]+(?:\/[A-Z0-9]+)*$/.test(target)&&/[A-Z]/.test(target)&&/[0-9]/.test(target)&&target!==source;}
+function validMergeTarget(source,target){return validCallsign(target)&&target!==source;}
 function selectedContacts(){
   try{if($('startDate').validity?.badInput)throw new Error('Enter a complete valid date or clear the date field.');const selection=filterByDate(loaded?.qsos||[], $('startDate').value||'');$('startDate').setAttribute('aria-invalid','false');$('dateError').hidden=true;return selection;}catch(e){$('startDate').setAttribute('aria-invalid','true');$('dateError').textContent=e.message;$('dateError').hidden=false;throw e;}
 }

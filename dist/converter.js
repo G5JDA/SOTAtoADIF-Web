@@ -17,13 +17,15 @@ const bands=[[.1357,.1378,'2190m'],[.472,.479,'630m'],[.501,.504,'560m'],[1.8,2,
 export function frequencyToBand(s){const m=s.match(/^(\d+(?:\.\d+)?)\s*MHz$/i);return m?bands.find(([a,b])=>+m[1]>=a&&+m[1]<=b)?.[2]||'':'';}
 // Preserve SOTA's generic DATA mode as an intentional extension to ADIF's mode enumeration.
 export function modeFor(s){s=s.toUpperCase();if(s==='DATA')return {mode:s};if(s==='DV')s='DIGITALVOICE';if(s in modes)return {mode:s};for(const [mode,subs] of Object.entries(modes))if(subs?.includes(s))return {mode,submode:s};return null;}
+export const validCallsign=s=>s.length>=3&&/^[A-Z0-9]+(?:\/[A-Z0-9]+)*$/i.test(s)&&/[A-Z]/i.test(s)&&/[0-9]/.test(s);
 export const validSummitRef=s=>/^[A-Z0-9]+\/[A-Z0-9]+-\d{3}$/i.test(s);
 export function readLog(text,{chaser=false}={}){const warnings=[],qsos=[];parseCSV(text).forEach((r,index)=>{const line=index+1;if(r.every(x=>!x.trim())||r[0]==='Version')return;
   if(r[0]!=='V2'||r.length<10){warnings.push(`Row ${line}: expected a SOTA V2 record with 10 columns.`);return;}
   const [version,station,summit,date,time,frequency,mode,call,other,comment]=r.map(x=>x.trim());
   const d=date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/),t=time.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
   const dt=d?new Date(Date.UTC(+d[3],+d[2]-1,+d[1])):null;
-  if(!d||dt.getUTCFullYear()!==+d[3]||dt.getUTCMonth()!==+d[2]-1||dt.getUTCDate()!==+d[1]||!t||+t[1]>23||+t[2]>59||+(t[3]||0)>59){warnings.push(`Row ${line}: invalid date or UTC time.`);return;}
+  if(!d||+d[3]<1930||dt.getUTCFullYear()!==+d[3]||dt.getUTCMonth()!==+d[2]-1||dt.getUTCDate()!==+d[1]||!t||+t[1]>23||+t[2]>59||+(t[3]||0)>59){warnings.push(`Row ${line}: invalid date or UTC time.`);return;}
+  if(!validCallsign(station)||!validCallsign(call)){warnings.push(`Row ${line}: invalid callsign; use letters, digits and optional slash-separated prefixes or suffixes, with at least one letter and digit.`);return;}
   const band=frequencyToBand(frequency),mapped=modeFor(mode);
   if(!station||!call||(!chaser&&!summit)||(chaser&&!other)||!band||!mapped){warnings.push(`Row ${line}: missing callsign/summit, unsupported frequency, or unknown mode (${frequency}, ${mode}).`);return;}
   if((summit&&!validSummitRef(summit))||(other&&!validSummitRef(other))){warnings.push(`Row ${line}: invalid summit reference; use a reference such as G/CE-001.`);return;}

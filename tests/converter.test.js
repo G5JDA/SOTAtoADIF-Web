@@ -142,3 +142,17 @@ test('ADI comments flatten line breaks and convert Unicode with visible warnings
   const plain=makeOutputs(readLog(text.replace('Café\nSecond line 😀','Plain ASCII <EOR> text')).qsos,new Map([['G/XX-001',{locator:'IO81XW'}]]));
   assert.equal(plain.warnings.length,0);assert.match(plain.files[0].text,/Plain ASCII <EOR> text/);
 });
+
+test('callsign syntax and ADIF date range reject invalid rows without assuming national prefixes',()=>{
+  const text='V2,G1ABC,G/XX-001,08/10/2026,12:00,14MHz,FM,G2XYZ,,Synthetic';
+  for(const call of ['!!!','???','ABC','123','A1','/G1ABC','G1ABC/','G1ABC//P','G1ABC-P']){
+    for(const value of [text.replace('G1ABC',call),text.replace('G2XYZ',call)]){
+      const log=readLog(value);assert.equal(log.qsos.length,0);assert.match(log.warnings[0],/invalid callsign/);
+    }
+  }
+  for(const call of ['EA/G1ABC/P','G1ABC/QRP','3DA0ABC','g1abc','G1ABC/EA/P']){
+    assert.equal(readLog(text.replace('G1ABC',call)).qsos.length,1);
+  }
+  assert.equal(readLog(text.replace('08/10/2026','31/12/1929')).qsos.length,0);
+  assert.equal(readLog(text.replace('08/10/2026','01/01/1930')).qsos.length,1);
+});
