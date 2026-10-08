@@ -92,3 +92,14 @@ export function joinS2S(activator,s2s) {
   }
   return {qsos:activator.map(q=>additions.has(q)?{...q,other:additions.get(q)}:{...q}),warnings,enriched,unmatched,ambiguous,conflicts};
 }
+
+export function detectLogType(text,name='') {
+  const rows=parseCSV(text).filter(row=>row.some(value=>value.trim()));
+  const header=rows.find(row=>row[0]==='Version');
+  const records=rows.filter(row=>row[0]==='V2');
+  if(header?.some(value=>/^(ChaserPoints|ActivatorPoints)$/i.test(value.trim())) || (records.length&&records.every(row=>row.length===12)))return 's2s';
+  if(/(?:^|[_\-])s2s(?:[_\-.]|$)/i.test(name))return 's2s';
+  if(records.length&&records.some(row=>row.length>=10&&row.length<12))return 'activator';
+  if(/(?:^|[_\-])activator(?:[_\-.]|$)/i.test(name))return 'activator';
+  throw new Error('Could not identify this CSV as an activator or S2S export. Use a SOTA V2 export with its original filename.');
+}

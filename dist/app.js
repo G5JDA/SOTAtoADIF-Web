@@ -1,29 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S} from './converter.js';
+import {readLog,lookupSummit,makeOutputs,validLocator,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType} from './converter.js';
 import {createSummitLookup} from './summit-cache.js';
 let summitStorage;
 try{summitStorage=localStorage;}catch{}
 const cachedSummitLookup=createSummitLookup(lookupSummit,summitStorage);
-const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),failedLookups=new Set(),loadId=0,busy=false,mergeMappings=new Map(),mainLog=null,s2sLog=null;
-function setBusy(value){busy=value;$('convert').setAttribute('aria-disabled',String(value));$('file').disabled=value;$('s2sFile').disabled=value;$('clearS2S').disabled=value||!s2sLog;$('enrich').disabled=value;$('startDate').disabled=value;$('mergeEnabled').disabled=value;for(const input of document.querySelectorAll('#mergeRows input'))input.disabled=value;for(const input of document.querySelectorAll('#summitRows input'))input.disabled=value;$('drop').setAttribute('aria-disabled',String(value));}
-async function readFile(file,additional=false){
-  if(busy||!file)return;setBusy(true);$('results').hidden=true;
+const $=id=>document.getElementById(id);let loaded=null,summits=new Map(),failedLookups=new Set(),loadId=0,busy=false,mergeMappings=new Map(),mainLog=null,s2sLog=null,mainName='',s2sName='';
+function setBusy(value){busy=value;$('convert').setAttribute('aria-disabled',String(value));$('file').disabled=value;$('clearMain').disabled=value||!mainLog;$('clearS2S').disabled=value||!s2sLog;$('enrich').disabled=value;$('startDate').disabled=value;$('mergeEnabled').disabled=value;for(const input of document.querySelectorAll('#mergeRows input'))input.disabled=value;for(const input of document.querySelectorAll('#summitRows input'))input.disabled=value;$('drop').setAttribute('aria-disabled',String(value));}
+async function readFiles(files){
+  if(busy||!files?.length)return;setBusy(true);$('results').hidden=true;
+  const pending=new Map();let currentName='CSV';
   try {
-    const text=await file.text();
-    const log=additional?readS2S(text):readLog(text);
-    if(additional){s2sLog=log;$('s2sName').textContent=file.name;}
-    else{mainLog=log;$('fileLabel').textContent=file.name;}
+    for(const file of Array.from(files)){
+      currentName=file.name;const text=await file.text();const type=detectLogType(text,file.name);
+      if(pending.has(type))throw new Error(`Select only one ${type} log at a time. No files from this selection were applied.`);
+      pending.set(type,{name:file.name,log:type==='s2s'?readS2S(text):readLog(text)});
+    }
+    if(pending.has('activator')){mainLog=pending.get('activator').log;mainName=pending.get('activator').name;}
+    if(pending.has('s2s')){s2sLog=pending.get('s2s').log;s2sName=pending.get('s2s').name;}
     rebuildLog();
   }catch(e){
-    if(additional){s2sLog=null;$('s2sName').textContent='S2S file could not be read.';}else mainLog=null;
     rebuildLog();$('resultBadge').textContent='FILE READ FAILED';
-    $('status').textContent=`Could not read ${file.name}. Select the file again or export a new CSV. ${e.message}`;
-  }finally{setBusy(false);}
+    $('status').textContent=`Could not read ${currentName}. Select the file again or export a new CSV. ${e.message} Previously loaded files were retained.`;
+  }finally{setBusy(false);$('file').value='';}
 }
-$('s2sFile').addEventListener('change',e=>readFile(e.target.files[0],true));
-$('clearS2S').addEventListener('click',()=>{if(busy)return;s2sLog=null;$('s2sFile').value='';$('s2sName').textContent='No additional S2S file selected.';rebuildLog();setBusy(false);});
+$('clearS2S').addEventListener('click',()=>{if(busy)return;s2sLog=null;s2sName='';rebuildLog();setBusy(false);});
+$('clearMain').addEventListener('click',()=>{if(busy)return;mainLog=null;mainName='';rebuildLog();setBusy(false);});
 function warn(messages){$('warningBox').hidden=!messages.length;$('warningBox').open=!!messages.length;$('warningTitle').textContent=`${messages.length} warning${messages.length===1?'':'s'} · review excluded rows and lookups`;$('warnings').replaceChildren(...messages.map(message=>{const li=document.createElement('li');li.textContent=message;return li;}));}
 function rebuildLog(){
+  $('fileLabel').textContent='Drop your SOTA CSV files here';$('mainName').textContent=mainLog?`Activator: ${mainName}`:'';$('s2sName').textContent=s2sLog?`S2S: ${s2sName}`:'';$('loadedFiles').hidden=!mainLog&&!s2sLog;$('mainFileRow').hidden=!mainLog;$('s2sFileRow').hidden=!s2sLog;
   loaded=mainLog||s2sLog;
   const joined=mainLog&&s2sLog?joinS2S(mainLog.qsos,s2sLog.qsos):null;
   if(joined)loaded={qsos:joined.qsos,warnings:mainLog.warnings,lookupWarnings:[...s2sLog.warnings,...joined.warnings]};
@@ -57,8 +61,8 @@ function selectedContacts(){return filterByDate(loaded?.qsos||[], $('startDate')
 $('startDate').addEventListener('change',()=>{if(busy)return;$('results').hidden=true;$('empty').hidden=false;try{const selection=selectedContacts();$('startDate').setAttribute('aria-invalid','false');$('status').textContent=`${selection.qsos.length} valid QSOs in date selection. ${selection.filtered} QSOs excluded by date. Convert to update the export.`;$('resultBadge').textContent='RECONVERT TO UPDATE';renderSummits();}catch(e){$('startDate').setAttribute('aria-invalid','true');$('locators').hidden=true;$('status').textContent=e.message;}});
 function renderSummits(){const refs=[...new Set(selectedContacts().qsos.flatMap(q=>[q.summit,q.other]).filter(Boolean))].filter(ref=>!$('enrich').checked||failedLookups.has(ref));$('locators').hidden=!refs.length;$('summitRows').replaceChildren(...refs.map((ref,index)=>{const row=document.createElement('label');row.className='summit';const text=document.createElement('span');text.id=`locator-label-${index}`;text.textContent=ref+(summits.get(ref)?.name?` · ${summits.get(ref).name}`:'');const input=document.createElement('input');input.placeholder='Locator';input.value=summits.get(ref)?.locator||'';input.setAttribute('aria-labelledby',text.id);input.pattern='[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?';const error=document.createElement('span');error.id=`locator-error-${index}`;error.className='locator-error';input.setAttribute('aria-describedby',error.id);function validate(){const value=input.value.trim();const invalid=!validLocator(value);input.setAttribute('aria-invalid',String(invalid));error.textContent=invalid?(value?'Invalid locator. Use a Maidenhead locator such as IO81XW.':'Enter a Maidenhead locator, such as IO81XW.'):' ';error.hidden=!invalid;}validate();input.addEventListener('input',()=>{summits.set(ref,{locator:input.value.trim().toUpperCase()});validate();$('results').hidden=true;$('empty').hidden=false;$('resultBadge').textContent='RECONVERT TO UPDATE';});const field=document.createElement('span');field.className='locator-field';field.append(input,error);row.append(text,field);return row;}));}
 $('enrich').addEventListener('change',()=>{if(!busy)renderSummits();});
-$('file').addEventListener('change',async e=>{const file=e.target.files[0];await readFile(file);});
-$('drop').addEventListener('dragover',e=>{e.preventDefault();if(!busy)$('drop').classList.add('drag');});$('drop').addEventListener('dragleave',()=>$('drop').classList.remove('drag'));$('drop').addEventListener('drop',async e=>{e.preventDefault();$('drop').classList.remove('drag');await readFile(e.dataTransfer.files[0]);});
+$('file').addEventListener('change',async e=>{await readFiles(e.target.files);});
+$('drop').addEventListener('dragover',e=>{e.preventDefault();if(!busy)$('drop').classList.add('drag');});$('drop').addEventListener('dragleave',()=>$('drop').classList.remove('drag'));$('drop').addEventListener('drop',async e=>{e.preventDefault();$('drop').classList.remove('drag');await readFiles(e.dataTransfer.files);});
 $('convert').onclick=async()=>{if(!loaded||$('convert').getAttribute('aria-disabled')==='true')return;const id=loadId;const current=loaded;const warnings=[...current.warnings,...(current.lookupWarnings||[])];setBusy(true);$('results').hidden=true;$('status').textContent='Preparing summit data…';try{
   const {qsos,filtered}=selectedContacts();
   if($('mergeEnabled').checked)for(const [source,target] of mergeMappings){if(!/^[A-Z0-9]+(?:\/[A-Z0-9]+)*$/.test(target)||!/[A-Z]/.test(target)||!/[0-9]/.test(target)||target===source)throw new Error(`Review the destination for ${source}: enter a different operating callsign or deselect this mapping.`);}

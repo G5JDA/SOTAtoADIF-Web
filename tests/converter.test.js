@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S} from '../dist/converter.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseCSV,readLog,frequencyToBand,modeFor,makeOutputs,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType} from '../dist/converter.js';
 const row='V2,G5JDA/P,G/CE-001,06/10/2026,10:15,144MHz,FM,M1HAX,G/WB-001,"Hello, summit"';
 test('CSV handles BOM, CRLF, embedded newlines, escaped quotes',()=>{assert.deepEqual(parseCSV('\uFEFFa,"b,b","say ""hi""\nnext"\r\n'),[['a','b,b','say "hi"\nnext']]);assert.throws(()=>parseCSV('"unfinished'));});
 test('validates rows without losing valid contacts',()=>{const {qsos,warnings}=readLog(row+'\nV2,too,short\n'+row.replace('06/10/2026','31/02/2026'));assert.equal(qsos.length,1);assert.equal(warnings.length,2);assert.equal(qsos[0].date,'20261006');});
@@ -59,4 +59,9 @@ test('S2S unmatched, ambiguous, and conflicting matches never add or overwrite c
  assert.equal(joinS2S([...base,...base],other).ambiguous,1);
  assert.equal(joinS2S(base,readLog(row.replace('10:15','11:15')).qsos).unmatched,1);
  assert.equal(readS2S(row.replace('G/WB-001','')).qsos.length,0);
+});
+
+test('upload classification prefers S2S layout and supports filename fallback',()=>{
+ assert.equal(detectLogType(row,'renamed.csv'),'activator');assert.equal(detectLogType(row+',0,0','wrong_activator.csv'),'s2s');
+ assert.equal(detectLogType(row,'example_s2s.csv'),'s2s');assert.throws(()=>detectLogType('unrelated,data','unknown.csv'));
 });
