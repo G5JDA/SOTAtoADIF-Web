@@ -10,6 +10,20 @@ Supports the original implemented activator workflow, SOTA V2 CSV, UTC times, or
 
 SOTA's generic `DATA` mode is accepted in all log types and exported unchanged as `<MODE:4>DATA`, without assigning a specific digital mode or submode. This is an intentional extension outside ADIF's standard mode enumeration; other logging programs may reject these contacts or require their mode to be corrected before importing. The page includes a compatibility note for users. It remains `DATA` when matching, filtering and merging contacts.
 
+## Git secret checks
+
+Install [Gitleaks](https://github.com/gitleaks/gitleaks#installing) and ensure `gitleaks` is on your PATH, then enable the tracked pre-commit hook in each checkout:
+
+```sh
+npm run setup:hooks
+```
+
+This sets this repository's `core.hooksPath` to `.githooks`. If you already use a custom hooks directory, integrate the Gitleaks check into that workflow instead of replacing it.
+
+Every normal commit scans staged changes using Gitleaks' default rules. The hook supports both the current `git` command and the older `protect` command. It blocks commits when secrets are detected, the scanner is missing, or scanning fails; reported secrets are redacted. Run `npm run check:secrets` to check staged changes before committing. Scanning happens locally and adds no browser dependencies or uploads.
+
+Remove secrets from staged content rather than adding broad exclusions. Private SOTA logs and signing keys must stay outside version control even when the scanner finds nothing. This check covers staged changes, not historical commits or all possible sensitive data, and local Git hooks can be bypassed; it is a safeguard, not a guarantee.
+
 ## Hosting preference
 
 Run this project locally only. Do not publish or deploy it to ChatGPT Sites. The previous Site identity in .openai/hosting.json is retained solely to identify the existing hosted copy for removal; it does not authorize deployment.

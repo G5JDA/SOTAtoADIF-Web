@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "setup:hooks": "git config --local core.hooksPath .githooks",
+    "check:secrets": "sh .githooks/pre-commit"
   },
   "license": "AGPL-3.0-or-later"
 }

@@ -25,6 +25,8 @@ node --check dist/app.js
 
 Open `http://127.0.0.1:8000` and refresh after edits. `npm test` runs Node's built-in test runner; `node --test tests/*.test.js` is equivalent. Syntax checks supplement behavioral tests.
 
+Install Gitleaks on PATH and run `npm run setup:hooks` once per checkout to enable the tracked `.githooks/pre-commit` check. `npm run check:secrets` scans staged changes manually. The hook blocks commits on detected secrets, missing Gitleaks or scanner errors and redacts findings. Preserve any existing custom hook workflow when setting this up.
+
 ## Coding Style & Naming Conventions
 
 Use JavaScript ES modules, `const` by default, and `let` for reassignment. Use two-space indentation when expanding compact existing code. Name functions and variables in camelCase and test files `*.test.js`. Keep conversion logic separate from DOM interactions. No formatter or linter is configured. Preserve SPDX notices and original attribution.
@@ -36,6 +38,8 @@ Use `node:test` with `node:assert/strict`. Add focused tests for changed convers
 ## Commit & Pull Request Guidelines
 
 Automatically commit completed, verified changes as work progresses. Keep each commit focused on one logical change; do not wait for a separate request to commit. Include only files relevant to that change, and do not push without explicit authorization.
+
+Keep the Gitleaks pre-commit check enabled. Resolve findings before committing; do not bypass the hook or introduce broad secret-scanning exclusions. Never commit private logs or signing keys, even if the scanner reports no findings.
 
 Use focused commits with concise imperative subjects, following the repository history, such as `Show manual locators only after lookup failure`. PR descriptions should explain behavior changes, validation, and limitations. Link relevant issues when available and include screenshots for visible UI changes.
 

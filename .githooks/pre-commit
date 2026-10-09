@@ -1,0 +1,18 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+set -eu
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo 'Commit blocked: install Gitleaks and ensure it is available on PATH.' >&2
+  exit 1
+fi
+
+# Gitleaks renamed protect to git in v8.19. Support both interfaces.
+if gitleaks git --help >/dev/null 2>&1; then
+  exec gitleaks git --pre-commit --staged --redact --no-banner
+elif gitleaks protect --help >/dev/null 2>&1; then
+  exec gitleaks protect --staged --redact --no-banner
+fi
+
+echo 'Commit blocked: this Gitleaks installation has no supported staged scanner.' >&2
+exit 1
