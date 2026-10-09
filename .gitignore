@@ -1,5 +1,13 @@
 # dist/ contains editable source and must remain tracked.
 
+# Local tool, account and repository metadata.
+.openai/
+.aws/
+.agents/
+.codex/
+.claude/
+.git/
+
 # Private input logs and generated radio-log exports.
 *.csv
 *.adi
