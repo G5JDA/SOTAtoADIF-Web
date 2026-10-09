@@ -1,0 +1,41 @@
+# dist/ contains editable source and must remain tracked.
+
+# Private input logs and generated radio-log exports.
+*.csv
+*.adi
+*.adif
+/private/
+/local-data/
+
+# Local environment settings and private keys.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_rsa_*
+id_ed25519
+id_ed25519_*
+
+# Optional development dependencies, caches and reports.
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+/coverage/
+.nyc_output/
+*.log
+
+# Editor and operating-system clutter.
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
