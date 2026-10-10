@@ -2,6 +2,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -eu
 
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+if [ "$branch" = main ]; then
+  echo 'Commit blocked: main accepts changes only through a human-reviewed GitHub pull request. Commit on a feature branch.' >&2
+  exit 1
+fi
+
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo 'Commit blocked: install Gitleaks and ensure it is available on PATH.' >&2
   exit 1
