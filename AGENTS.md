@@ -9,23 +9,31 @@ This is a dependency-free static browser port of SOTAtoADIF. `dist/` contains ed
 - `converter.js`: CSV parsing, validation, summit API requests, and ADIF generation.
 - `summit-cache.js`: 24-hour local summit cache and concurrent lookup deduplication.
 - `modes.js`: ADIF mode and submode mappings inherited from the Python project.
-- `tests/`: conversion, summit cache, and DOM interaction regression tests.
+- `manifest.webmanifest`, `icons/`, and `favicon.svg`: installation metadata and local app assets.
+- `tests/`: conversion, summit cache, DOM interaction, and Git hook regression tests.
+- `.githooks/pre-commit`: staged secret scanning with Gitleaks.
+- `README.md` and `DEPLOYMENT.md`: user workflow, validation notes, and hosting security-header guidance.
 
-`LICENSE` and `dist/LICENSE` contain AGPLv3 text. `.openai/hosting.json` retains the previous hosted Site identity solely for removal; it is not deployment authorization.
+The app has no runtime dependencies or generated build output. Do not ignore or regenerate `dist/` as a build directory. `LICENSE` and `dist/LICENSE` contain AGPLv3 text; preserve original attribution and SPDX notices.
+
+Local tool directories, including `.openai/`, are ignored and are not repository configuration or deployment authorization. Do not force-add ignored files.
 
 ## Build, Test, and Development Commands
 
-No dependency installation or build step is required. Use Node.js for tests and Python for local serving:
+No application dependency installation or build step is required. Use Node.js for tests, Python for local serving, and Gitleaks for commit checks:
 
 ```sh
 python3 -m http.server 8000 --bind 127.0.0.1 --directory dist
 npm test
 node --check dist/app.js
+node --check dist/converter.js
 ```
 
 Open `http://127.0.0.1:8000` and refresh after edits. `npm test` runs Node's built-in test runner; `node --test tests/*.test.js` is equivalent. Syntax checks supplement behavioral tests.
 
 Install Gitleaks on PATH and run `npm run setup:hooks` once per checkout to enable the tracked `.githooks/pre-commit` check. `npm run check:secrets` scans staged changes manually. The hook blocks commits on detected secrets, missing Gitleaks or scanner errors and redacts findings. Preserve any existing custom hook workflow when setting this up.
+
+If npm is unavailable, use `node --test tests/*.test.js`, `git config --local core.hooksPath .githooks`, and `sh .githooks/pre-commit` respectively. Use the available bundled Node runtime if Node is not on PATH; do not add application dependencies just to run these commands.
 
 ## Coding Style & Naming Conventions
 
@@ -33,13 +41,25 @@ Use JavaScript ES modules, `const` by default, and `let` for reassignment. Use t
 
 ## Testing Guidelines
 
-Use `node:test` with `node:assert/strict`. Add focused tests for changed conversion behavior: quoted CSV, invalid rows, date/time validation, band/submode mapping, station grouping, missing locators, and S2S fields. Tests must be deterministic and independent of live API availability. No numerical coverage threshold is configured. Check UI changes locally, including automatic/manual locator visibility and failure recovery.
+Use `node:test` with `node:assert/strict`. Add focused regression tests when behavior changes; documentation-only changes do not need new tests. Run the existing suite for code changes and syntax-check changed JavaScript modules. No numerical coverage threshold is configured.
+
+Keep fixtures synthetic and tests deterministic, independent of live API availability. Cover affected behavior across activator, S2S and chaser logs, including quoted CSV, row validation, UTC dates/times, band/submode mapping, station grouping, required/optional locators, duplicate/conflicting joins, inclusive date filtering, and reviewed callsign merging. Cache tests should control time and mock summit requests.
+
+Check UI changes locally, including keyboard operation, automatic/manual locator visibility, upload failure recovery, stale asynchronous results, and busy-control behavior. Include light/dark and high-contrast themes, mobile reflow, and reading preferences when relevant. DOM tests do not establish screen-reader behavior or actual browser download completion; report which manual checks were performed.
+
+Git hook tests cover current and legacy scanner interfaces, missing/unsupported scanners and scan failures. The real Gitleaks integration test checks staged-only scanning, redaction and commit rejection; it skips when Gitleaks is unavailable. A skipped integration test is not evidence that secret scanning passed.
 
 ## Commit & Pull Request Guidelines
 
 Automatically commit completed, verified changes as work progresses. Keep each commit focused on one logical change; do not wait for a separate request to commit. Include only files relevant to that change, and do not push without explicit authorization.
 
+Inspect the working tree before editing and stage explicit paths so unrelated user changes are preserved. Review the staged diff and run `git diff --cached --check` before committing. Do not rewrite history, remove recovery data, or change remote/account settings unless the user requests it.
+
+Use the contributor's configured Git identity and signing key. Keep personal signing and SSH settings outside tracked files; never copy private keys into the repository or change global Git settings without a request. Preserve enabled commit signing. If signing fails, resolve the configuration or report the blocker rather than silently creating an unsigned commit. Verify signed commits with `git verify-commit HEAD`.
+
 Keep the Gitleaks pre-commit check enabled. Resolve findings before committing; do not bypass the hook or introduce broad secret-scanning exclusions. Never commit private logs or signing keys, even if the scanner reports no findings.
+
+Gitleaks scans staged changes, not the entire history or every kind of personal data. `.gitignore` does not protect already tracked files and can be overridden; review staged content as well as scanner results.
 
 Use focused commits with concise imperative subjects, following the repository history, such as `Show manual locators only after lookup failure`. PR descriptions should explain behavior changes, validation, and limitations. Link relevant issues when available and include screenshots for visible UI changes.
 
@@ -50,3 +70,7 @@ Aim to meet WCAG 2.2 Level AA requirements. Level A requirements are non-negotia
 ## Privacy & Local-Only Operation
 
 Keep CSV processing and ADIF generation in the browser. Send only summit references to the SOTA API; never upload logs or add telemetry. Do not publish or deploy this repository without a new explicit user request.
+
+Never use private logs, or data derived from them, as test fixtures, screenshots, or committed examples. Do not persist uploaded logs in browser storage. Local storage is limited to summit caching and interface preferences.
+
+When changing inline scripts in `dist/index.html`, recompute the CSP hashes using the instructions in `DEPLOYMENT.md`. Keep documented asset URLs and API permissions synchronized with source changes. Do not broaden the CSP or add external assets to avoid resolving a compatibility issue. Deployment documentation and a configured Git remote do not authorize publishing or pushing.
