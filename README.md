@@ -1,81 +1,69 @@
-# SOTAtoADIF browser edition
+# SOTAtoADIF Web
 
-A dependency-free, static webapp port of [G5JDA/SOTAtoADIF](https://github.com/G5JDA/SOTAtoADIF) v1.0.0. Copyright (c) 2024 Jack G5JDA. AGPL-3.0-or-later; see dist/LICENSE.
+Convert Summits on the Air (SOTA) database CSV exports into ADIF files for your amateur-radio logbook, directly in your browser.
 
-Serve `dist/` with any static web server (e.g. `python3 -m http.server 8000 --bind 127.0.0.1 --directory dist`). Open http://localhost:8000. Run tests with `node --test tests/*.test.js`.
+**[Use the hosted app at sotatoadif.g5jda.uk](https://sotatoadif.g5jda.uk/)**
 
-All CSV parsing, validation, ADIF generation and downloads happen in the browser. Optional summit enrichment calls api2.sota.org.uk directly, passing summit references only. Successful summit names and locators are cached in localStorage for 24 hours and reused across files and refreshes. Failed lookups are not cached. If browser storage is unavailable, an in-memory cache is used. No conversion backend, uploads, cookies, analytics, external assets or dependencies. Disable enrichment and enter locators manually for offline conversion after loading the page.
+SOTAtoADIF Web is a dependency-free browser edition based on the older [SOTAtoADIF Python project](https://github.com/G5JDA/SOTAtoADIF) by Jack G5JDA. It brings the original CSV conversion and summit-enrichment workflow to a web interface and adds support for combining activator, summit-to-summit (S2S), and chaser logs.
 
-Supports the original implemented activator workflow, SOTA V2 CSV, UTC times, original band/mode mappings, summit locator enrichment and one ADIF file per station callsign. Chaser imports are supported. Optional S2S imports can enrich activator contacts or be converted alone. Fixes upstream duplicate MY_SOTA_REF and wrong S2S comment. Invalid dates/modes/frequencies and missing locators are reported instead of silently producing invalid output. Files without valid QSOs produce no download.
+## Features
 
-SOTA's generic `DATA` mode is accepted in all log types and exported unchanged as `<MODE:4>DATA`, without assigning a specific digital mode or submode. This is an intentional extension outside ADIF's standard mode enumeration; other logging programs may reject these contacts or require their mode to be corrected before importing. The page includes a compatibility note for users. It remains `DATA` when matching, filtering and merging contacts.
+- Import SOTA V2 activator, S2S, and chaser CSV exports, individually or together.
+- Look up summit names and Maidenhead locators through the SOTA API, with a 24-hour local cache.
+- Enter summit locators manually when automatic lookup is unavailable.
+- Filter contacts by an inclusive UTC start date.
+- Create one ADIF file per station callsign, with optional additional exports using reviewed callsign-suffix mappings.
+- Review conversion warnings and preview the ADIF before downloading.
+- Choose light, dark, and high-contrast themes, plus text size and reading preferences.
 
-## Git secret checks
+## Using the app
 
-Install [Gitleaks](https://github.com/gitleaks/gitleaks#installing) and ensure `gitleaks` is on your PATH, then enable the tracked pre-commit hook in each checkout:
+1. Export your logs as SOTA V2 CSV files from the SOTA database.
+2. Open [SOTAtoADIF Web](https://sotatoadif.g5jda.uk/) and choose or drop your files into the upload area. Log types are identified automatically; you can load one file of each type.
+3. Optionally choose a start date or review additional callsign exports. Leave automatic summit lookup enabled, or disable it and enter locators manually.
+4. Select **Convert to ADIF**, review any warnings, and supply missing required locators if prompted. Convert again after changing settings.
+5. Download the ADIF files and review them before importing into your logging software.
+
+When activator and S2S logs are combined, matching S2S records enrich the activator contacts; unmatched S2S contacts are reported rather than appended. Chaser logs enrich matching contacts and add contacts absent from the other log. Ambiguous matches and conflicting summit references are reported without guessing.
+
+Own-summit locators are required for activator contacts. Worked-summit locators are optional, and chaser-only contacts omit unknown own-summit fields. Additional callsign exports repeat contacts from the originals: import only the appropriate set into each destination to avoid duplicates. Preserve overseas operating prefixes and suffixes when reviewing callsign mappings.
+
+### Compatibility notes
+
+SOTA's generic `DATA` mode is exported unchanged as `MODE=DATA` for TQSL use. It is outside ADIF's standard mode enumeration, so other logging programs may reject these contacts or require their mode to be corrected before import.
+
+ADIF comments are converted to printable ASCII: accents are removed where possible, line breaks become spaces, and unsupported characters are replaced. Warnings identify changed comments; the source CSV is unchanged. Invalid rows and contacts missing required locators are reported, and valid contacts can still be exported.
+
+## Privacy
+
+CSV parsing, validation, ADIF generation, and downloads happen locally in your browser. Logs are not uploaded or stored persistently. Optional summit enrichment sends only summit references to the SOTA API; successful summit data and interface preferences are stored locally on your device. There is no conversion backend or telemetry.
+
+After the page has loaded, you can disable automatic lookup and enter locators manually to convert without API access. The app does not include a service worker or guarantee offline page availability.
+
+## Running locally
+
+The editable application source is in `dist/`; no build step or dependency installation is needed. With Python installed, run this from the repository root:
 
 ```sh
-npm run setup:hooks
+python3 -m http.server 8000 --bind 127.0.0.1 --directory dist
 ```
 
-This sets this repository's `core.hooksPath` to `.githooks`. If you already use a custom hooks directory, integrate the Gitleaks check into that workflow instead of replacing it.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Static hosting and security-header guidance is available in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-Every normal commit scans staged changes using Gitleaks' default rules. The hook supports both the current `git` command and the older `protect` command. It blocks commits when secrets are detected, the scanner is missing, or scanning fails; reported secrets are redacted. Run `npm run check:secrets` to check staged changes before committing. Scanning happens locally and adds no browser dependencies or uploads.
+## Development
 
-Remove secrets from staged content rather than adding broad exclusions. Private SOTA logs and signing keys must stay outside version control even when the scanner finds nothing. This check covers staged changes, not historical commits or all possible sensitive data, and local Git hooks can be bypassed; it is a safeguard, not a guarantee.
+Run the regression tests with Node.js:
 
-## Hosting preference
+```sh
+node --test tests/*.test.js
+```
 
-Run this project locally only. Do not publish or deploy it to ChatGPT Sites. The previous Site identity in .openai/hosting.json is retained solely to identify the existing hosted copy for removal; it does not authorize deployment.
+`npm test` runs the same suite. Tests cover conversion, summit caching, browser interactions, and the Git secret-checking hook using synthetic fixtures. See [AGENTS.md](AGENTS.md) for contributor guidance. Do not include private logs or credentials in issues, pull requests, or test fixtures.
 
-## License
+Install [Gitleaks](https://github.com/gitleaks/gitleaks) on your PATH, then run `npm run setup:hooks` once per checkout to enable staged secret checks before commits. If you already use custom Git hooks, integrate the check into your existing workflow. Run `npm run check:secrets` for a manual staged scan. The hook blocks commits on findings or scanner failures and redacts detected secrets; it cannot detect every kind of sensitive data.
 
-This browser port is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version. See LICENSE (also served as dist/LICENSE). Original project attribution is retained; the upstream Python repository remains under its own GPL-3.0-or-later license.
+## Licence and attribution
 
-## Home-screen installation
+SOTAtoADIF Web is licensed under the **GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later)**. See [LICENSE](LICENSE) for the full terms.
 
-The manifest uses relative URLs and includes Android and Apple home-screen icons. Open the app on a phone-accessible URL and use the browser’s installation or Add to Home Screen option (on iOS, Share → Add to Home Screen). Installation availability depends on the browser and secure-origin requirements. No service worker or offline app-shell caching is provided.
-
-## Date selection
-
-Use “Include contacts on or after” to export a portion of a full log. The selected UTC date is inclusive; leave it blank for the whole log. Older valid contacts are filtered before summit lookups and counted separately from errors. Invalid CSV rows remain reported. Changing the date requires another conversion.
-
-## Optional suffix merging
-
-Expand “Additional callsign exports” and enable merging to review mappings. Select each source and edit its destination if needed. All trailing suffixes can be merged; overseas prefixes are preserved (EA/G1ABC/P → EA/G1ABC). Review trailing overseas locations such as G1ABC/EA/P and keep the location in the destination. Ambiguous formats need a manually entered destination. Originals remain available; additional files contain only selected source contacts, excluding contacts already logged under the destination. Import one set per destination to avoid duplicates. Date filtering also applies to merged exports.
-
-## Feature validation
-
-Automated conversion and DOM tests cover inclusive UTC date boundaries (including year changes and leap days), empty selections, mixed home/overseas callsigns, unchanged ADIF contact fields, distinct original/merged filenames, accessible mapping/download names, and control locking during asynchronous lookups. Run `node --test tests/*.test.js`.
-
-Manual browser checks covered date entry and focus, keyboard merge toggling and tab navigation, all four light/dark and normal/high-contrast combinations, desktop and 390px mobile layouts, and merge mappings at 200% reading text size. Synthetic logs verified filtered and empty selections and separate home/overseas merged downloads. Browser automation did not confirm actual file download completion; generated download contents are tested in the DOM suite. These checks do not constitute a WCAG conformance claim.
-
-## S2S imports
-
-Use the shared picker or drop area for an activator, S2S or chaser CSVs, together or in either order. The 12-column layout or points header identifies S2S exports; the original filename provides a fallback for S2S, and normal V2 records identify activator logs. Loaded filenames and roles are shown with individual removal controls. Selecting a new file replaces that role; duplicate roles in one selection or read errors reject the entire selection and retain existing logs. Its header and trailing points columns are accepted. With both files, the activator list is authoritative: matches enrich existing contacts; unmatched S2S rows are not appended. Matching uses normalized station/worked callsigns, own summit, UTC date/time, band, mode and submode. Comments are preserved from the activator file. Repeated matching keys are reported as ambiguous; conflicting worked summit references retain the original. The summary applies to the full input before date filtering.
-
-The worked summit becomes SOTA_REF; cached lookup or manual entry supplies GRIDSQUARE. A missing worked locator does not exclude the contact. Date filtering and optional suffix merging use the enriched contacts. Removing or replacing the S2S file invalidates prior results. The shared picker and both removal controls lock during conversion. No logs are uploaded or stored persistently, and private example logs must never be committed or used to derive test fixtures.
-
-S2S verification used synthetic fixtures only. Tests cover standalone/both-file imports, removal and read-failure recovery, duplicate prevention, ambiguity/conflicts, date filtering, merged exports, locator enrichment and failed DX lookups. Browser checks verified matching counts, manual locators, keyboard focus, all four themes and mobile layout on local port 8003.
-
-## Chaser imports and combinations
-
-The shared area also accepts chaser V2 exports (empty own summit, worked summit, and optional trailing points). Chaser-only contacts export SOTA_REF and optional worked GRIDSQUARE, omitting unknown MY_SOTA_REF and MY_GRIDSQUARE. No own locator is guessed.
-
-Any log can be used alone. Activator + S2S enriches matched activator contacts without appending unmatched S2S records. Activator + chaser and S2S + chaser match on station/worked callsigns, UTC date/time, band, mode and submode; matching contacts retain their own summit and receive the worked reference. Additional chaser contacts are appended. All three first joins S2S to activator, then merges chaser. Repeated matching keys and conflicting references are reported without guessing or adding duplicate overlaps. Matching summaries precede date filtering; suffix merging preserves unknown own fields.
-
-Chaser verification uses synthetic data only: standalone exports, all-three overlap/new-contact handling, S2S + chaser after activator removal, ambiguity/conflicts, and missing own fields. Browser checks covered standalone conversion, role/removal labels, keyboard focus and mobile themes on port 8005. Private sample logs and derivatives are not included.
-
-The DOM regression suite exercises date filtering and reviewed suffix merging across all seven non-empty combinations of activator, S2S and chaser uploads. It checks cutoff inclusion, empty selections, clearing the date, disabling merging, separate home/overseas exports, exclusion of plain callsign contacts from additional files, accurate contact counts and preserved S2S/locator fields. Matching summaries describe full inputs before date selection; export counts describe selected contacts.
-
-## Search and sharing metadata
-
-The HTML includes a descriptive title, description, Open Graph and Twitter summary metadata, plus WebApplication structured data. The manifest description covers all three supported log types. Metadata is static and contains no uploaded log data. The planned public URL is `https://sotatoadif.g5jda.uk/`, used in canonical, Open Graph and structured data metadata. Add an absolute social-preview image URL if a dedicated image is created. Deployment response headers are documented in `DEPLOYMENT.md`; the manifest keeps relative URLs so local and public installations work. Metadata alone does not guarantee search indexing or rich results.
-
-`dist/robots.txt` permits crawling and contains no assumed public sitemap URL. Localhost remains inaccessible to public crawlers; robots.txt is not access control. `dist/humans.txt` provides project credits and technology notes and is linked from the HTML head.
-
-Accessibility recovery checks cover incomplete native dates, associated merge errors with focus recovery, file-removal focus, required/optional locator labels, merged-export live announcements and custom-colour contrast feedback. Reading recovery controls keep fixed readable colours when custom colours are active. Browser checks on port 8006 verified merge-error focus, removal focus and mobile recovery at 1:1 custom contrast. These checks do not constitute a screen-reader audit or conformance claim.
-
-ADIF comments use printable ASCII: accents are removed where possible, line breaks and tabs become spaces, and unsupported characters become `?`. Export warnings identify changed comments; source CSV text remains unchanged. Invalid worked locators are omitted with a warning while retaining the contact. Rejected uploads preserve manual locators and callsign mappings.
-
-Input callsigns must contain letters and digits and may have slash-separated operating prefixes or suffixes; no national prefix list is assumed. Contact dates must be valid UTC dates in 1930 or later. Summit references must have the form `G/CE-001`; malformed references are rejected before export or API lookup.
+This browser edition is based on [G5JDA/SOTAtoADIF](https://github.com/G5JDA/SOTAtoADIF), the original Python converter, and retains its attribution. The Python project is separately licensed under GPL-3.0-or-later; see its repository for its licence and documentation.
