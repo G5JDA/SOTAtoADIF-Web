@@ -30,6 +30,8 @@ Own-summit locators are required for activator contacts. Worked-summit locators 
 
 ### Compatibility notes
 
+For guidance on using the generated ADIF files with **Logbook of The World (LoTW)** and **Trusted QSL (TQSL)**, see the [original SOTAtoADIF project's wiki](https://github.com/G5JDA/SOTAtoADIF/wiki).
+
 SOTA's generic `DATA` mode is exported unchanged as `MODE=DATA` for TQSL use. It is outside ADIF's standard mode enumeration, so other logging programs may reject these contacts or require their mode to be corrected before import.
 
 ADIF comments are converted to printable ASCII: accents are removed where possible, line breaks become spaces, and unsupported characters are replaced. Warnings identify changed comments; the source CSV is unchanged. Invalid rows and contacts missing required locators are reported, and valid contacts can still be exported.
