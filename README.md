@@ -64,6 +64,10 @@ node --test tests/*.test.js
 
 Install [Gitleaks](https://github.com/gitleaks/gitleaks) on your PATH, then run `npm run setup:hooks` once per checkout to enable staged secret checks before commits. If you already use custom Git hooks, integrate the check into your existing workflow. Run `npm run check:secrets` for a manual staged scan. The hook blocks commits on findings or scanner failures and redacts detected secrets; it cannot detect every kind of sensitive data.
 
+## Security
+
+See [SECURITY.md](SECURITY.md) for supported versions and instructions for reporting vulnerabilities. Please keep vulnerability details out of public issues and pull requests.
+
 ## Licence and attribution
 
 SOTAtoADIF Web is licensed under the **GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later)**. See [LICENSE](LICENSE) for the full terms.
