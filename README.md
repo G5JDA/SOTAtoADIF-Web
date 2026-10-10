@@ -69,3 +69,9 @@ Install [Gitleaks](https://github.com/gitleaks/gitleaks) on your PATH, then run 
 SOTAtoADIF Web is licensed under the **GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later)**. See [LICENSE](LICENSE) for the full terms.
 
 This browser edition is based on [G5JDA/SOTAtoADIF](https://github.com/G5JDA/SOTAtoADIF), the original Python converter, and retains its attribution. The Python project is separately licensed under GPL-3.0-or-later; see its repository for its licence and documentation.
+
+## AI disclosure and guidance
+
+This web port was developed with assistance from AI tools. All code is reviewed by a human for gross errors and security issues. This review does not guarantee that the software is free of bugs or vulnerabilities.
+
+Review conversion warnings and check the generated ADIF files before importing them into your logbook or submitting them to LoTW through TQSL. If you find a problem, please report it through the repository's issues, using synthetic examples rather than private logs or credentials.
