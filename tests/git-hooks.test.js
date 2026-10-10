@@ -74,7 +74,7 @@ test('real Gitleaks allows clean staged content and blocks a staged secret', {
     const result = spawnSync('git', args, {cwd:directory, encoding:'utf8'});
     assert.equal(result.status, 0, result.stderr);
   };
-  git('init', '--quiet');
+  git('init', '--quiet', '--initial-branch=hook-test');
   git('config', 'core.hooksPath', dirname(hook));
   git('config', 'user.name', 'Hook Test');
   git('config', 'user.email', 'hook-test@example.invalid');
@@ -103,4 +103,19 @@ test('real Gitleaks allows clean staged content and blocks a staged secret', {
   git('add', 'clean.txt');
   const clean = commit();
   assert.equal(clean.status, 0, clean.stderr);
+});
+
+test('hook blocks direct and squash commits on main', t => {
+  const directory = fixture(t);
+  const init = spawnSync('git', ['init', '--quiet', '--initial-branch=main'], {
+    cwd:directory, encoding:'utf8'
+  });
+  assert.equal(init.status, 0, init.stderr);
+  let result = check(directory);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /main accepts changes only through a human-reviewed GitHub pull request/);
+  writeFileSync(join(directory, '.git', 'SQUASH_MSG'), 'Synthetic squash attempt\n');
+  result = check(directory);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Commit on a feature branch/);
 });

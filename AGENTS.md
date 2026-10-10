@@ -47,13 +47,19 @@ Keep fixtures synthetic and tests deterministic, independent of live API availab
 
 Check UI changes locally, including keyboard operation, automatic/manual locator visibility, upload failure recovery, stale asynchronous results, and busy-control behavior. Include light/dark and high-contrast themes, mobile reflow, and reading preferences when relevant. DOM tests do not establish screen-reader behavior or actual browser download completion; report which manual checks were performed.
 
-Git hook tests cover current and legacy scanner interfaces, missing/unsupported scanners and scan failures. The real Gitleaks integration test checks staged-only scanning, redaction and commit rejection; it skips when Gitleaks is unavailable. A skipped integration test is not evidence that secret scanning passed.
+Git hook tests cover rejection of direct and squash commits on `main`, current and legacy scanner interfaces, missing/unsupported scanners and scan failures. The real Gitleaks integration test checks staged-only scanning, redaction and commit rejection; it skips when Gitleaks is unavailable. A skipped integration test is not evidence that secret scanning passed.
 
 ## Commit & Pull Request Guidelines
 
-Automatically commit completed, verified changes as work progresses. Keep each commit focused on one logical change; do not wait for a separate request to commit. Include only files relevant to that change, and do not push without explicit authorization.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) for the complete Git workflow. The default branch is `main`; the human maintainer approving the branch is the operator. Never commit or push directly to `main`. Use one feature branch per open theme, preferring `codex/<theme>` for agent-created branches. Continue related work on an open branch; start a new branch from current `main` for a different theme or after an earlier branch has merged.
 
-Inspect the working tree before editing and stage explicit paths so unrelated user changes are preserved. Review the staged diff and run `git diff --cached --check` before committing. Do not rewrite history, remove recovery data, or change remote/account settings unless the user requests it.
+Automatically commit completed, verified changes on the feature branch as work progresses. Keep each commit focused on one logical change and explain what changed and why. Clean up unpublished commits before offering the branch for review. Preserve pushed history and all commits on `main`: never force-push or rewrite published commits. Use follow-up commits for review feedback.
+
+When ready, summarize the branch's changes, validation and limitations. Push the feature branch or open a PR only with explicit authorization. All changes require a human-reviewed GitHub PR targeting `main`; the operator manually merges that specific PR using **Create a merge commit**. Agents must not merge, enable auto-merge, squash, rebase-merge or push a local merge to `main`. Approval of one branch does not carry over to another.
+
+After a confirmed merge, fetch and fast-forward local `main`, verify the feature branch is contained in `origin/main`, and delete it with `git branch -d`. Never use `git branch -D`; keep the branch and report failures. Report every commit and merge outcome plainly.
+
+Inspect the working tree before editing and stage explicit paths so unrelated user changes are preserved. Review the staged diff and run `git diff --cached --check` before committing. Do not remove recovery data or change remote/account settings unless the user requests it. Do not bypass hooks with `--no-verify`; fix failures before retrying.
 
 Use the contributor's configured Git identity and signing key. Keep personal signing and SSH settings outside tracked files; never copy private keys into the repository or change global Git settings without a request. Preserve enabled commit signing. If signing fails, resolve the configuration or report the blocker rather than silently creating an unsigned commit. Verify signed commits with `git verify-commit HEAD`.
 

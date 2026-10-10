@@ -60,9 +60,9 @@ Run the regression tests with Node.js:
 node --test tests/*.test.js
 ```
 
-`npm test` runs the same suite. Tests cover conversion, summit caching, browser interactions, and the Git secret-checking hook using synthetic fixtures. See [AGENTS.md](AGENTS.md) for contributor guidance. Do not include private logs or credentials in issues, pull requests, or test fixtures.
+`npm test` runs the same suite. Tests cover conversion, summit caching, browser interactions, and the Git secret-checking hook using synthetic fixtures. See [CONTRIBUTING.md](CONTRIBUTING.md) for the Git workflow and [AGENTS.md](AGENTS.md) for development guidance. All changes reach `main` through a manually reviewed GitHub pull request merged by a human using a merge commit. Do not include private logs or credentials in issues, pull requests, or test fixtures.
 
-Install [Gitleaks](https://github.com/gitleaks/gitleaks) on your PATH, then run `npm run setup:hooks` once per checkout to enable staged secret checks before commits. If you already use custom Git hooks, integrate the check into your existing workflow. Run `npm run check:secrets` for a manual staged scan. The hook blocks commits on findings or scanner failures and redacts detected secrets; it cannot detect every kind of sensitive data.
+Install [Gitleaks](https://github.com/gitleaks/gitleaks) on your PATH, then run `npm run setup:hooks` once per checkout to enable the pre-commit checks. If you already use custom Git hooks, integrate the checks into your existing workflow. The hook rejects commits on `main` and scans staged feature-branch changes for secrets. Run `npm run check:secrets` on a feature branch for a manual check. The hook blocks commits on findings or scanner failures and redacts detected secrets; it cannot detect every kind of sensitive data.
 
 ## Security
 
