@@ -11,12 +11,12 @@ class Element{
   focus(){this.focused=true;}
   click(){this.clicked=true;this.onclick?.();}
 }
-function app(lookup=async()=>({locator:'IO81XW',name:'Test summit'})){
+function app(lookup=async()=>({locator:'IO81XW',name:'Test summit'}),prepare=async()=>({summits:{}})){
  const elements=new Map();const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id);};
  const document={getElementById:get,createElement:()=>new Element(),documentElement:new Element(),querySelectorAll:selector=>selector==='#mergeRows input'?get('mergeRows').children.flatMap(row=>[row.children[0].children[0],row.children[2]]):get('summitRows').children.map(row=>row.children[1].children[0])};
  document.documentElement.dataset.theme='light';get('mergeEnabled').checked=false;
  const downloads=[];const saved=new Map();
- const context={document,readLog,makeOutputs,validLocator,validCallsign,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser,lookupSummit:lookup,createSummitLookup:fn=>fn,localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},matchMedia:()=>({matches:false,addEventListener(){}}),Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return 'blob:test';},revokeObjectURL(){}},setTimeout:fn=>fn()};
+ const context={document,readLog,makeOutputs,validLocator,validCallsign,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser,lookupSummit:lookup,summitDataset:{prepare},localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},matchMedia:()=>({matches:false,addEventListener(){}}),Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return 'blob:test';},revokeObjectURL(){}},setTimeout:fn=>fn()};
   // Imports may span several lines; conversion dependencies are supplied by the test context.
   const source = readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8');
   vm.runInNewContext(source.replace(/^import\b[\s\S]*?;$/gm, ''), context);
@@ -72,6 +72,7 @@ test('mixed home and overseas merge controls have labels, lock during lookup, an
  ui.get('startDate').value='2026-10-06';ui.get('startDate').listeners.change();
  const conversion=ui.get('convert').onclick();
  for(const mapping of mappings){assert.equal(mapping.children[0].children[0].disabled,true);assert.equal(mapping.children[2].disabled,true);}
+ await new Promise(resolve=>setImmediate(resolve));
  finish({locator:'IO81XW'});await conversion;
  for(const mapping of mappings)assert.equal(mapping.children[2].disabled,false);
  assert.equal(ui.get('downloads').children.length,2);
@@ -215,3 +216,11 @@ test('invalid worked locators and converted comments show export warnings',async
   assert.match(ui.get('warnings').children.map(li=>li.textContent).join(' '),/GRIDSQUARE omitted.*comment converted to ASCII/);
   assert.match(ui.get('status').textContent,/2 warnings/);
 });
+
+ test('dataset download failure exposes manual locators and conversion remains recoverable',async()=>{
+  let calls=0;const ui=app(async()=>{calls++;return {locator:'IO81XW'};},async()=>{throw Error('Dataset unavailable');});
+  await ui.upload(row);await ui.get('convert').onclick();
+  assert.equal(calls,0);assert.equal(ui.get('locators').hidden,false);
+  assert.equal(ui.get('convert').disabled,false);
+  assert.match(ui.get('warnings').children.map(item=>item.textContent).join(' '),/Dataset unavailable/);
+ });

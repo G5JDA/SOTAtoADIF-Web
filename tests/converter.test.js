@@ -115,7 +115,7 @@ test('invalid worked locator is omitted with a warning without losing the contac
   assert.match(result.warnings[0],/GRIDSQUARE omitted, contact retained/);
 });
 
-test('malformed summit references are rejected before export or API requests',async()=>{
+test('malformed summit references are rejected before export or dataset requests',async()=>{
   const {lookupSummit}=await import('../dist/converter.js');
   const text='V2,G1ABC,G/XX-001,08/10/2026,12:00,14MHz,FM,G2XYZ,G/XX-002,Synthetic';
   for(const ref of ['G/XX-002?CONTACT=PRIVATE','../XX-002','G/XX-002#fragment','not a reference']){
@@ -124,10 +124,10 @@ test('malformed summit references are rejected before export or API requests',as
     }
   }
   const originalFetch=globalThis.fetch;const requests=[];
-  globalThis.fetch=async url=>{requests.push(url);return {ok:true,status:200,json:async()=>({locator:'IO81XW'})};};
+  globalThis.fetch=async url=>{requests.push(url);return {ok:true,status:200,text:async()=> 'SOTA Summits List (Date=11/10/2026)\nSummitCode,SummitName,Longitude,Latitude\nG/XX-002,Test,-2.0059,51.9199',headers:{get:()=>''}};};
   try{
     await assert.rejects(lookupSummit('G/XX-002?CONTACT=PRIVATE'),/Invalid summit/);assert.equal(requests.length,0);
-    await lookupSummit(' g/xx-002 ');assert.deepEqual(requests,['https://api2.sota.org.uk/api/summits/G/XX-002']);
+    await lookupSummit(' g/xx-002 ');assert.deepEqual(requests,['https://storage.sota.org.uk/summitslist.csv']);
   }finally{globalThis.fetch=originalFetch;}
 });
 

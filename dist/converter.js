@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (c) 2024 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
+// Copyright (c) 2024, 2026 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
 import { modes } from './modes.js';
+import { summitDataset } from './summit-data.js';
 
 // Column counts and zero-based summit positions in the supported SOTA V2 CSV layouts.
 const LOG_COLUMN_COUNT = 10;
 const S2S_COLUMN_COUNT = 12;
 const OWN_SUMMIT_COLUMN = 2;
 const WORKED_SUMMIT_COLUMN = 8;
-const SUMMIT_LOOKUP_TIMEOUT_MS = 15000;
 
 // Parse CSV rows while preserving quoted commas, escaped quotes and embedded line breaks.
 export function parseCSV(text) {
@@ -133,7 +133,7 @@ export const validCallsign = (value) =>
   /^[A-Z0-9]+(?:\/[A-Z0-9]+)*$/i.test(value) &&
   /[A-Z]/i.test(value) &&
   /[0-9]/.test(value);
-// Check the association/region-number shape before a reference is used in an API path or ADIF field.
+// Check the association/region-number shape before a reference is used in a dataset lookup or ADIF field.
 export const validSummitRef = (value) => /^[A-Z0-9]+\/[A-Z0-9]+-\d{3}$/i.test(value);
 
 // Validate calendar dates explicitly because Date.UTC normalizes impossible dates.
@@ -220,25 +220,14 @@ export function readLog(text, { chaser = false } = {}) {
 // Accept Maidenhead locators with four, six or eight characters.
 export const validLocator = (value) => /^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/i.test(value);
 
-// Fetch one validated summit reference with no credentials and a bounded timeout; reject missing locators.
-export async function lookupSummit(ref) {
+// Read a summit from one dataset snapshot, so an update cannot mix versions within an export.
+export async function lookupSummit(ref, dataset) {
   ref = ref.trim().toUpperCase();
-  if (!validSummitRef(ref)) {
-    throw new Error('Invalid summit reference');
-  }
-  const path = ref.split('/').map(encodeURIComponent).join('/');
-  const response = await fetch('https://api2.sota.org.uk/api/summits/' + path, {
-    credentials: 'omit',
-    signal: AbortSignal.timeout(SUMMIT_LOOKUP_TIMEOUT_MS)
-  });
-  if (!response.ok || response.status === 204) {
-    throw new Error('Summit not found');
-  }
-  const data = await response.json();
-  if (!validLocator(data.locator || '')) {
-    throw new Error('No valid locator returned');
-  }
-  return { ...data, locator: data.locator.toUpperCase() };
+  if (!validSummitRef(ref)) throw new Error('Invalid summit reference');
+  dataset ||= await summitDataset.prepare();
+  const entry = Object.hasOwn(dataset.summits, ref) ? dataset.summits[ref] : undefined;
+  if (!entry) throw new Error('Summit not found');
+  return { name: entry[0], locator: entry[1] };
 }
 
 // ADI COMMENT is an ASCII String: preserve readable accents where possible.
@@ -306,7 +295,7 @@ export function makeOutputs(qsos, summits, now = new Date()) {
   const adifTimestamp = timestamp.replace(/[-:]/g, '').replace('T', ' ');
   const filenameTimestamp = timestamp.replace('T', '_').replace(/:/g, '-');
   const header = [
-    '# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.',
+    '# SOTAtoADIF browser edition. Copyright 2024, 2026 Jack G5JDA. AGPL-3.0-or-later.',
     adifField('ADIF_VER', '3.1.4'),
     adifField('PROGRAMID', 'SOTAtoADIF'),
     adifField('PROGRAMVERSION', 'web-1.0.0'),

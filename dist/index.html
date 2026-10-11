@@ -224,10 +224,10 @@
           <div class="settings">
             <h3>Summit enrichment</h3>
             <p>
-              Fetch summit locators directly from the SOTA API. Successful summit lookups are
-              cached on this device for 24 hours. Only summit references are sent; your log
-              stays here.
+              Download the SOTA summit list and calculate locators on this device. Saved summit
+              data is checked for updates when the page loads. Your log stays here.
             </p>
+            <p id="datasetStatus" role="status" aria-live="polite"></p>
             <label class="check">
               <input id="enrich" type="checkbox" checked>
               Look up summit data automatically
