@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (c) 2024 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
+// Copyright (c) 2024, 2026 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
 import { modes } from './modes.js';
 import { summitDataset } from './summit-data.js';
 
@@ -295,7 +295,7 @@ export function makeOutputs(qsos, summits, now = new Date()) {
   const adifTimestamp = timestamp.replace(/[-:]/g, '').replace('T', ' ');
   const filenameTimestamp = timestamp.replace('T', '_').replace(/:/g, '-');
   const header = [
-    '# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.',
+    '# SOTAtoADIF browser edition. Copyright 2024, 2026 Jack G5JDA. AGPL-3.0-or-later.',
     adifField('ADIF_VER', '3.1.4'),
     adifField('PROGRAMID', 'SOTAtoADIF'),
     adifField('PROGRAMVERSION', 'web-1.0.0'),
