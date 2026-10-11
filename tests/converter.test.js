@@ -156,3 +156,47 @@ test('callsign syntax and ADIF date range reject invalid rows without assuming n
   assert.equal(readLog(text.replace('08/10/2026','31/12/1929')).qsos.length,0);
   assert.equal(readLog(text.replace('08/10/2026','01/01/1930')).qsos.length,1);
 });
+
+// Additions in ADIF 3.1.5–3.1.7 must survive each supported CSV layout and ADIF export.
+test('ADIF 3.1.7 mode additions export with the specified parent modes', () => {
+  const additions = [
+    ['FSK', 'FSK'],
+    ['MTONE', 'MTONE'],
+    ['OFDM', 'OFDM'],
+    ['FSKH105', 'HELL'],
+    ['FSKH245', 'HELL'],
+    ['SCAMP_FAST', 'FSK'],
+    ['SCAMP_SLOW', 'FSK'],
+    ['SCAMP_VSLOW', 'FSK'],
+    ['SCAMP_OO', 'MTONE'],
+    ['SCAMP_OO_SLW', 'MTONE'],
+    ['FT2', 'MFSK'],
+    ['FREEDATA', 'DYNAMIC'],
+    ['RIBBIT_PIX', 'OFDM'],
+    ['RIBBIT_SMS', 'OFDM']
+  ];
+  const summits = new Map([
+    ['G/XX-001', { locator: 'IO81XW' }],
+    ['G/XX-002', { locator: 'IO82TB' }]
+  ]);
+  for (const [input, parent] of additions) {
+    const expected = input === parent ? { mode: parent } : { mode: parent, submode: input };
+    assert.deepEqual(modeFor(input.toLowerCase()), expected);
+    const contact = `V2,G1ABC,G/XX-001,08/10/2026,12:00,14MHz,${input},G2XYZ,G/XX-002,Synthetic`;
+    const logs = [readLog(contact), readS2S(contact + ',0,0'), readChaser(contact.replace('G/XX-001', ''))];
+    for (const log of logs) {
+      assert.deepEqual(log.warnings, [], input);
+      assert.equal(log.qsos.length, 1);
+      const output = makeOutputs(log.qsos, summits);
+      assert.deepEqual(output.skipped, []);
+      const text = output.files[0].text;
+      assert.ok(text.includes('<ADIF_VER:5>3.1.7'));
+      assert.ok(text.includes(`<MODE:${parent.length}>${parent}`));
+      if (input === parent) {
+        assert.doesNotMatch(text, /<SUBMODE/);
+      } else {
+        assert.ok(text.includes(`<SUBMODE:${input.length}>${input}`));
+      }
+    }
+  }
+});
