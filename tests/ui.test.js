@@ -17,7 +17,9 @@ function app(lookup=async()=>({locator:'IO81XW',name:'Test summit'})){
  document.documentElement.dataset.theme='light';get('mergeEnabled').checked=false;
  const downloads=[];const saved=new Map();
  const context={document,readLog,makeOutputs,validLocator,validCallsign,filterByDate,proposeMerge,makeMergedOutputs,readS2S,joinS2S,detectLogType,readChaser,joinChaser,lookupSummit:lookup,createSummitLookup:fn=>fn,localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},matchMedia:()=>({matches:false,addEventListener(){}}),Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return 'blob:test';},revokeObjectURL(){}},setTimeout:fn=>fn()};
- vm.runInNewContext(readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;$/gm,''),context);
+  // Imports may span several lines; conversion dependencies are supplied by the test context.
+  const source = readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8');
+  vm.runInNewContext(source.replace(/^import\b[\s\S]*?;$/gm, ''), context);
  return {get,downloads,document,upload:async text=>get('file').listeners.change({target:{files:[{name:'test.csv',text:async()=>text}]}})};
 }
 const row='V2,ZZ1AAA,G/CE-001,06/10/2026,10:15,144MHz,FM,ZZ9BBB,,,\n';
