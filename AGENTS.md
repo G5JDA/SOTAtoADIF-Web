@@ -37,7 +37,7 @@ If npm is unavailable, use `node --test tests/*.test.js`, `git config --local co
 
 ## Coding Style & Naming Conventions
 
-Use JavaScript ES modules, `const` by default, and `let` for reassignment. Use two-space indentation when expanding compact existing code. Name functions and variables in camelCase and test files `*.test.js`. Keep conversion logic separate from DOM interactions. No formatter or linter is configured. Preserve SPDX notices and original attribution.
+Use JavaScript ES modules, `const` by default, and `let` for reassignment. Use two-space indentation when expanding compact existing code. Name functions and variables in camelCase and test files `*.test.js`. Keep conversion logic separate from DOM interactions. Limit source-code lines to 120 characters, including indentation. Wrap long HTML attribute lists and text, and split JavaScript expressions at logical boundaries. Keep structured-data strings concise rather than inserting invalid JSON line breaks. Apply the limit to new and edited code; reformat existing code when touching it. No formatter or linter is configured. Preserve SPDX notices and original attribution.
 
 ## Testing Guidelines
 
