@@ -25,7 +25,9 @@ try {
 const cachedSummitLookup = createSummitLookup(lookupSummit, summitStorage);
 
 // Keep log state in memory; only summit data and display preferences may be persisted.
+// Resolve the fixed element IDs shared by the page markup and its UI handlers.
 const getElement = (id) => document.getElementById(id);
+// Associate validation with live destination fields without retaining rows after they are replaced.
 const mergeValidators = new WeakMap();
 let combinedLog = null;
 let summits = new Map();
@@ -40,6 +42,7 @@ let s2sFilename = '';
 let chaserLog = null;
 let chaserFilename = '';
 
+// Lock log-changing controls; aria-disabled lets conversion keep focus while its action is blocked.
 function setBusy(disabled) {
   isBusy = disabled;
   getElement('convert').setAttribute('aria-disabled', String(disabled));
@@ -59,6 +62,7 @@ function setBusy(disabled) {
   getElement('drop').setAttribute('aria-disabled', String(disabled));
 }
 
+// Read and classify a selection locally; apply it only after every file has been parsed successfully.
 async function readFiles(files) {
   if (isBusy || !files?.length) {
     return;
@@ -84,6 +88,7 @@ async function readFiles(files) {
         log: logReaders[type](text)
       });
     }
+    // Replace only the supplied log types; other loaded files remain available for joining.
     if (pendingLogs.has('activator')) {
       activatorLog = pendingLogs.get('activator').log;
       activatorFilename = pendingLogs.get('activator').name;
@@ -106,9 +111,11 @@ async function readFiles(files) {
       `${error.message} Previously loaded files were retained.`;
   } finally {
     setBusy(false);
+    // Clearing the picker permits selecting the same filename again after a read failure.
     getElement('file').value = '';
   }
 }
+// Removing a log rejoins the remaining files and returns focus to the upload control.
 getElement('clearS2S').addEventListener('click', () => {
   if (isBusy) {
     return;
@@ -139,6 +146,7 @@ getElement('clearChaser').addEventListener('click', () => {
   setBusy(false);
   getElement('file').focus();
 });
+// Open actionable warning details automatically and replace messages using text nodes.
 function renderWarnings(messages) {
   getElement('warningBox').hidden = !messages.length;
   getElement('warningBox').open = messages.length > 0;
@@ -153,6 +161,7 @@ function renderWarnings(messages) {
   );
 }
 
+// Rejoin the currently loaded logs and reset any conversion state tied to the previous selection.
 function rebuildLog() {
   getElement('fileLabel').textContent = 'Drop your SOTA CSV files here';
   getElement('mainName').textContent = activatorLog ? `Activator: ${activatorFilename}` : '';
@@ -162,12 +171,14 @@ function rebuildLog() {
   getElement('chaserName').textContent = chaserLog ? `Chaser: ${chaserFilename}` : '';
   getElement('mainFileRow').hidden = !activatorLog;
   getElement('s2sFileRow').hidden = !s2sLog;
+  // Prefer activator records as the base; an S2S or chaser log can also stand alone.
   combinedLog = activatorLog || s2sLog || chaserLog;
   const s2sJoin = activatorLog && s2sLog ? joinS2S(activatorLog.qsos, s2sLog.qsos) : null;
   if (s2sJoin) {
     combinedLog = {
       qsos: s2sJoin.qsos,
       warnings: activatorLog.warnings,
+      // Supplementary S2S warnings describe enrichment problems, not rejected base contacts.
       lookupWarnings: [...s2sLog.warnings, ...s2sJoin.warnings]
     };
   }
@@ -179,6 +190,7 @@ function rebuildLog() {
     : s2sLog
       ? `${s2sLog.qsos.length} S2S contacts available for standalone conversion.`
       : '';
+  // Join chaser contacts after S2S enrichment; unlike S2S, unmatched chaser contacts are appended.
   const chaserJoin =
     chaserLog && (activatorLog || s2sLog) ? joinChaser(combinedLog.qsos, chaserLog.qsos) : null;
   if (chaserJoin) {
@@ -197,6 +209,7 @@ function rebuildLog() {
       ? `${chaserLog.qsos.length} chaser contacts. Own summit and locator are omitted; ` +
         'worked summit locators can be looked up.'
       : '';
+  // Manual locators and mapping choices belong to this selection; cached API data stays reusable.
   logRevision++;
   summits = new Map();
   failedLookups = new Set();
@@ -213,6 +226,7 @@ function rebuildLog() {
   renderSummits();
 }
 
+// Hide downloads whose settings have changed and prompt the user to generate fresh exports.
 function invalidateExports() {
   getElement('results').hidden = true;
   getElement('empty').hidden = false;
@@ -220,6 +234,7 @@ function invalidateExports() {
   getElement('status').textContent = 'Export options changed. Convert again to update downloads.';
 }
 
+// Build one opt-in callsign mapping with its destination field and accessible validation feedback.
 function createMergeRow(station, index) {
   const mergeRow = document.createElement('div');
   mergeRow.className = 'merge-row';
@@ -245,6 +260,7 @@ function createMergeRow(station, index) {
   validationMessage.className = 'locator-error';
   validationMessage.hidden = true;
   destinationInput.setAttribute('aria-describedby', validationMessage.id);
+  // An unchecked row has no effect on exports, so its destination need not pass validation.
   const validateDestination = () => {
     const isInvalid =
       includeCheckbox.checked &&
@@ -259,6 +275,7 @@ function createMergeRow(station, index) {
   // Conversion validates the currently rendered destinations and focuses the first invalid input.
   mergeValidators.set(destinationInput, validateDestination);
   validateDestination();
+  // Save only checked mappings; any change invalidates the previously generated downloads.
   const updateMapping = () => {
     if (isBusy) {
       return;
@@ -278,6 +295,7 @@ function createMergeRow(station, index) {
   return mergeRow;
 }
 
+// Show reviewed mappings only when requested; only slash-containing station callsigns get a merge row.
 function renderMergeOptions() {
   getElement('mergePanel').hidden = !getElement('mergeEnabled').checked;
   const stations = [...new Set((combinedLog?.qsos || []).map((qso) => qso.station))].filter(
@@ -295,6 +313,7 @@ getElement('mergeEnabled').addEventListener('change', () => {
 });
 renderMergeOptions();
 
+// Require a syntactically valid destination that actually changes the source operating callsign.
 function validMergeTarget(source, target) {
   return validCallsign(target) && target !== source;
 }
@@ -316,6 +335,7 @@ function readDateSelection() {
     throw error;
   }
 }
+// Date edits invalidate exports and recalculate which summit fields are relevant.
 getElement('startDate').addEventListener('change', () => {
   if (isBusy) {
     return;
@@ -341,6 +361,7 @@ function getSummitReferences(qsos) {
   return [...new Set(qsos.flatMap((qso) => [qso.summit, qso.other]).filter(Boolean))];
 }
 
+// Build a manual locator field; an own-summit locator is required, but a worked-summit locator is optional.
 function createSummitRow(ref, index, ownSummitRefs) {
   const summitRow = document.createElement('label');
   summitRow.className = 'summit';
@@ -362,6 +383,7 @@ function createSummitRow(ref, index, ownSummitRefs) {
   validationMessage.id = `locator-error-${index}`;
   validationMessage.className = 'locator-error';
   locatorInput.setAttribute('aria-describedby', validationMessage.id);
+  // A blank optional worked locator is valid; a missing own locator must be explained to the user.
   function validateLocator() {
     const value = locatorInput.value.trim();
     const isInvalid = value ? !validLocator(value) : isRequired;
@@ -388,12 +410,14 @@ function createSummitRow(ref, index, ownSummitRefs) {
   return summitRow;
 }
 
+// Offer manual fields for selected summits, or only failed lookups when automatic enrichment is enabled.
 function renderSummits() {
   if (getElement('startDate').getAttribute('aria-invalid') === 'true') {
     getElement('locators').hidden = true;
     return;
   }
   const { qsos } = readDateSelection();
+  // A reference appearing as both own and worked retains the stricter own-summit requirement.
   const ownSummitRefs = new Set(qsos.map((qso) => qso.summit).filter(Boolean));
   const summitRefs = getSummitReferences(qsos).filter(
     (ref) => !getElement('enrich').checked || failedLookups.has(ref)
@@ -403,11 +427,13 @@ function renderSummits() {
     ...summitRefs.map((ref, index) => createSummitRow(ref, index, ownSummitRefs))
   );
 }
+// Lookup preference changes alter manual-field visibility without discarding entered locators.
 getElement('enrich').addEventListener('change', () => {
   if (!isBusy) {
     renderSummits();
   }
 });
+// The picker and drop area share the same parsing, duplicate-type checks and busy-state guard.
 getElement('file').addEventListener('change', async (event) => {
   await readFiles(event.target.files);
 });
@@ -424,6 +450,7 @@ getElement('drop').addEventListener('drop', async (event) => {
   await readFiles(event.dataTransfer.files);
 });
 
+// Present one original or merged export and create its downloadable Blob only when requested.
 function createDownloadRow(file) {
   const downloadRow = document.createElement('div');
   downloadRow.className = 'download';
@@ -446,16 +473,19 @@ function createDownloadRow(file) {
     link.href = url;
     link.download = file.name;
     link.click();
+    // Give the browser time to begin the download before releasing the temporary object URL.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   downloadRow.append(summary, downloadButton);
   return downloadRow;
 }
 
+// Enrich unique summits sequentially and collect recoverable lookup failures for manual entry.
 async function fetchSummitLocators(qsos, revision, warnings) {
   const summitRefs = getSummitReferences(qsos);
   for (let index = 0; index < summitRefs.length; index++) {
     const summitRef = summitRefs[index];
+    // Keep valid manual values; automatic values still go through the cache's expiry check.
     if (validLocator(summits.get(summitRef)?.locator || '') && !summits.get(summitRef)?.automatic) {
       failedLookups.delete(summitRef);
       continue;
@@ -464,6 +494,7 @@ async function fetchSummitLocators(qsos, revision, warnings) {
       `Looking up ${summitRef} (${index + 1}/${summitRefs.length})…`;
     try {
       const data = await cachedSummitLookup(summitRef);
+      // A resolved request must not update summit data for a replaced log selection.
       if (revision !== logRevision) {
         return;
       }
@@ -477,6 +508,7 @@ async function fetchSummitLocators(qsos, revision, warnings) {
   }
 }
 
+// Distinguish export errors from deliberate date exclusions in the short result badge.
 function getExportBadge(hasFiles, excludedCount, filteredCount) {
   if (!hasFiles) {
     return 'NO CONTACTS EXPORTED';
@@ -487,6 +519,7 @@ function getExportBadge(hasFiles, excludedCount, filteredCount) {
   return filteredCount ? 'ALL SELECTED CONTACTS EXPORTED' : 'ALL CONTACTS EXPORTED';
 }
 
+// Display counts, warning details and downloads without counting additional merged files as new contacts.
 function renderConversionResults({
   qsos,
   filtered,
@@ -500,6 +533,7 @@ function renderConversionResults({
   renderWarnings([...allWarnings, ...skipped]);
   getElement('empty').hidden = files.length > 0;
   getElement('results').hidden = !files.length;
+  // Warnings about retained fields or joins are separate from contacts excluded due to errors.
   const excludedCount = invalidRowCount + skipped.length;
   getElement('resultBadge').textContent = getExportBadge(files.length > 0, excludedCount, filtered);
   const exportedCount = files.reduce((total, file) => total + file.count, 0);
@@ -519,6 +553,7 @@ function renderConversionResults({
       return div;
     })
   );
+  // Merged files repeat original contacts; list them as alternatives and warn against importing both.
   const downloadFiles = [...files, ...mergedFiles];
   getElement('mergeDownloadWarning').hidden = !mergedFiles.length;
   getElement('mergeDownloadWarning').textContent =
@@ -546,6 +581,7 @@ function renderConversionResults({
       'Add valid summit locators and try again.';
 }
 
+// Coordinate validation, optional enrichment and export generation; always restore controls on exit.
 async function convertLog() {
   if (!combinedLog || getElement('convert').getAttribute('aria-disabled') === 'true') {
     return;
@@ -560,6 +596,7 @@ async function convertLog() {
   getElement('status').textContent = 'Preparing summit data…';
   try {
     const { qsos, filtered } = readDateSelection();
+    // Validate live mapping controls before any requests; defer error focus until controls unlock.
     if (getElement('mergeEnabled').checked) {
       const invalidInputs = [...document.querySelectorAll('#mergeRows input')].filter((input) => {
         const validate = mergeValidators.get(input);
@@ -573,6 +610,7 @@ async function convertLog() {
         );
       }
     }
+    // An empty date selection is a recoverable result, not an API or conversion failure.
     if (!qsos.length) {
       getElement('empty').hidden = false;
       getElement('resultBadge').textContent = 'NO CONTACTS IN DATE SELECTION';
@@ -589,6 +627,7 @@ async function convertLog() {
       return;
     }
     renderSummits();
+    // Original station files are always generated; reviewed mappings add separate optional exports.
     const output = makeOutputs(qsos, summits);
     const mergedFiles = getElement('mergeEnabled').checked
       ? makeMergedOutputs(qsos, summits, mergeMappings)
@@ -609,12 +648,14 @@ async function convertLog() {
   } finally {
     setBusy(false);
     getElement('convert').disabled = !combinedLog?.qsos.length;
+    // Disabled destination/date controls cannot reliably receive focus until they are re-enabled.
     errorFocus?.focus();
   }
 }
 getElement('convert').onclick = convertLog;
 
 // Preference persistence is best-effort; blocked storage must not prevent normal use.
+// Read an optional saved value, treating inaccessible storage as an unset preference.
 function readStoredPreference(key) {
   try {
     return localStorage.getItem(key);
@@ -623,6 +664,7 @@ function readStoredPreference(key) {
   }
 }
 
+// Save a display preference, or remove its saved override when value is null; storage failures are optional.
 function writeStoredPreference(key, value) {
   try {
     if (value === null) {
@@ -639,6 +681,7 @@ function writeStoredPreference(key, value) {
 const themeToggle = getElement('themeToggle');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 let chosenTheme = readStoredPreference('sotatoadif-theme');
+// Keep the CSS theme and the toggle's accessible pressed state in sync.
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   themeToggle.setAttribute('aria-pressed', String(theme === 'dark'));
@@ -651,6 +694,7 @@ themeToggle.addEventListener('click', () => {
   applyTheme(chosenTheme);
   writeStoredPreference('sotatoadif-theme', chosenTheme);
 });
+// Follow operating-system theme changes only until the user has made an explicit theme choice.
 systemTheme.addEventListener('change', (event) => {
   if (chosenTheme !== 'dark' && chosenTheme !== 'light') {
     applyTheme(event.matches ? 'dark' : 'light');
@@ -658,6 +702,7 @@ systemTheme.addEventListener('change', (event) => {
 });
 
 const contrastToggle = getElement('contrastToggle');
+// Apply high contrast independently of the light/dark theme, preserving both choices.
 function applyContrast(high) {
   document.documentElement.dataset.contrast = high ? 'high' : 'normal';
   contrastToggle.setAttribute('aria-pressed', String(high));
@@ -669,6 +714,7 @@ contrastToggle.addEventListener('click', () => {
   writeStoredPreference('sotatoadif-contrast', high ? 'high' : 'normal');
 });
 
+// Validate saved reading preferences against supported options before applying them to the page.
 const readingDefaults = {
   size: '100',
   width: '80',
@@ -698,7 +744,9 @@ try {
   // Ignore malformed saved JSON and retain the reading defaults.
 }
 
+// Calculate the WCAG contrast ratio for two validated six-digit sRGB hex colours.
 function contrastRatio(text, background) {
+  // Relative luminance combines linearized colour channels using their perceptual weights.
   const relativeLuminance = (hex) => {
     // Convert sRGB channels to linear light before applying luminance weights.
     const channels = [1, 3, 5]
@@ -716,6 +764,7 @@ function contrastRatio(text, background) {
   );
 }
 
+// Apply reading preferences to CSS and controls, and report custom-colour contrast without changing choices.
 function applyReading() {
   const root = document.documentElement;
   root.style.setProperty('--reading-scale', Number(reading.size) / 100);
@@ -737,6 +786,7 @@ function applyReading() {
     ? `Custom text contrast: ${ratio.toFixed(2)}:1. ${contrastAdvice}`
     : 'Custom colours are off. Theme colours are active.';
 }
+// Each reading control updates one preference, reapplies the complete set, and saves it locally.
 for (const [id, key] of [
   ['readingSize', 'size'],
   ['readingWidth', 'width'],
@@ -750,6 +800,7 @@ for (const [id, key] of [
     writeStoredPreference('sotatoadif-reading', JSON.stringify(reading));
   });
 }
+// Reset both the active reading settings and the saved override so the defaults apply next time.
 getElement('readingReset').addEventListener('click', () => {
   reading = { ...readingDefaults };
   applyReading();

@@ -4,9 +4,12 @@ import { validLocator } from './converter.js';
 export const CACHE_TTL = 24 * 60 * 60 * 1000;
 const CACHE_KEY_PREFIX = 'sotatoadif-summit:';
 
+// Create a lookup with 24-hour memory/persistent caching and shared requests for concurrent callers.
+// Inject the fetcher, storage and clock so cache expiry and failures can be tested without a live API.
 export function createSummitLookup(fetchSummit, storage, now = Date.now) {
   const memoryCache = new Map();
   const pendingRequests = new Map();
+  // Reject future-dated or malformed entries; an entry becomes stale at exactly 24 hours.
   function isFreshEntry(entry) {
     const ageMs = now() - entry?.savedAt;
     return (
@@ -16,9 +19,11 @@ export function createSummitLookup(fetchSummit, storage, now = Date.now) {
       validLocator(entry?.data?.locator || '')
     );
   }
+  // Normalize the reference, reuse fresh data, then fetch only if neither cache nor request can satisfy it.
   return async function lookup(reference) {
     const summitRef = reference.trim().toUpperCase();
     let entry = memoryCache.get(summitRef);
+    // A fresh persisted entry may survive a reload even when this lookup has not seen it in memory.
     if (!isFreshEntry(entry)) {
       try {
         entry = JSON.parse(storage?.getItem(CACHE_KEY_PREFIX + summitRef) || 'null');
@@ -31,12 +36,14 @@ export function createSummitLookup(fetchSummit, storage, now = Date.now) {
     }
     if (isFreshEntry(entry)) {
       memoryCache.set(summitRef, entry);
+      // Returning a copy prevents callers from modifying the saved summit data.
       return { ...entry.data };
     }
     // Concurrent callers share one request; failures are not saved as cache entries.
     if (pendingRequests.has(summitRef)) {
       return pendingRequests.get(summitRef);
     }
+    // Cache only a successful, validated response; rejected requests remain retryable.
     const request = (async () => {
       const data = await fetchSummit(summitRef);
       if (!validLocator(data?.locator || '')) {
@@ -60,6 +67,7 @@ export function createSummitLookup(fetchSummit, storage, now = Date.now) {
     try {
       return await request;
     } finally {
+      // Release the shared request after success or failure so later callers can retry or use the cache.
       pendingRequests.delete(summitRef);
     }
   };

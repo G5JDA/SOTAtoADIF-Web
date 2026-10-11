@@ -2,13 +2,14 @@
 // Copyright (c) 2024 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
 import { modes } from './modes.js';
 
+// Column counts and zero-based summit positions in the supported SOTA V2 CSV layouts.
 const LOG_COLUMN_COUNT = 10;
 const S2S_COLUMN_COUNT = 12;
 const OWN_SUMMIT_COLUMN = 2;
 const WORKED_SUMMIT_COLUMN = 8;
 const SUMMIT_LOOKUP_TIMEOUT_MS = 15000;
 
-// CSV fields may contain quoted commas, escaped quotes and embedded line breaks.
+// Parse CSV rows while preserving quoted commas, escaped quotes and embedded line breaks.
 export function parseCSV(text) {
   text = text.replace(/^\uFEFF/, '');
   const rows = [];
@@ -18,6 +19,7 @@ export function parseCSV(text) {
   for (let index = 0; index < text.length; index++) {
     const character = text[index];
     if (character === '"') {
+      // Inside a quoted field, doubled quotes represent one literal quote rather than closing the field.
       if (quoted && text[index + 1] === '"') {
         value += '"';
         index++;
@@ -30,6 +32,7 @@ export function parseCSV(text) {
       row.push(value);
       value = '';
     } else if ((character === '\n' || character === '\r') && !quoted) {
+      // Treat CRLF as a single row boundary; newlines inside quoted fields remain part of the value.
       if (character === '\r' && text[index + 1] === '\n') {
         index++;
       }
@@ -44,6 +47,7 @@ export function parseCSV(text) {
   if (quoted) {
     throw new Error('CSV contains an unclosed quoted field.');
   }
+  // Keep a final record without a trailing newline, but do not add an extra empty row.
   if (value || row.length) {
     row.push(value);
     rows.push(row);
@@ -88,6 +92,7 @@ const frequencyBands = [
   [300000, 7500000, 'submm']
 ];
 
+// Resolve a SOTA MHz frequency to an ADIF band; unrecognized formats or ranges return an empty string.
 export function frequencyToBand(frequency) {
   const match = frequency.match(/^(\d+(?:\.\d+)?)\s*MHz$/i);
   if (!match) {
@@ -100,6 +105,7 @@ export function frequencyToBand(frequency) {
   return matchingBand?.[2] || '';
 }
 
+// Map a SOTA mode to ADIF MODE/SUBMODE, returning null for unknown values.
 // Preserve SOTA's generic DATA mode as an intentional extension to ADIF's mode enumeration.
 export function modeFor(value) {
   let normalizedMode = value.toUpperCase();
@@ -112,6 +118,7 @@ export function modeFor(value) {
   if (normalizedMode in modes) {
     return { mode: normalizedMode };
   }
+  // A SOTA submode becomes its parent MODE plus SUBMODE, rather than replacing the parent field.
   for (const [mode, submodes] of Object.entries(modes)) {
     if (submodes?.includes(normalizedMode)) {
       return { mode, submode: normalizedMode };
@@ -120,11 +127,13 @@ export function modeFor(value) {
   return null;
 }
 
+// Check callsign syntax, including slash-separated operating prefixes/suffixes, not licence validity.
 export const validCallsign = (value) =>
   value.length >= 3 &&
   /^[A-Z0-9]+(?:\/[A-Z0-9]+)*$/i.test(value) &&
   /[A-Z]/i.test(value) &&
   /[0-9]/.test(value);
+// Check the association/region-number shape before a reference is used in an API path or ADIF field.
 export const validSummitRef = (value) => /^[A-Z0-9]+\/[A-Z0-9]+-\d{3}$/i.test(value);
 
 // Validate calendar dates explicitly because Date.UTC normalizes impossible dates.
@@ -149,6 +158,8 @@ function parseQsoDateTime(date, time) {
   return { date: year + month + day, time: hours + minutes + seconds };
 }
 
+// Normalize valid SOTA V2 records and retain row-specific warnings instead of rejecting the whole log.
+// QSO dates use YYYYMMDD, times use HHmm[ss] UTC, and line identifies the original CSV record.
 export function readLog(text, { chaser = false } = {}) {
   const warnings = [];
   const qsos = [];
@@ -188,6 +199,7 @@ export function readLog(text, { chaser = false } = {}) {
       warnings.push(`Row ${line}: invalid summit reference; use a reference such as G/CE-001.`);
       return;
     }
+    // Normalize matching/export keys once; keep comments as Unicode until ADIF serialization.
     qsos.push({
       line,
       chaser,
@@ -205,8 +217,10 @@ export function readLog(text, { chaser = false } = {}) {
   return { qsos, warnings };
 }
 
+// Accept Maidenhead locators with four, six or eight characters.
 export const validLocator = (value) => /^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/i.test(value);
 
+// Fetch one validated summit reference with no credentials and a bounded timeout; reject missing locators.
 export async function lookupSummit(ref) {
   ref = ref.trim().toUpperCase();
   if (!validSummitRef(ref)) {
@@ -234,18 +248,22 @@ const toAsciiComment = (value) =>
     .replace(/\p{M}/gu, '')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/[^\x20-\x7E]/gu, '?');
+// Serialize a non-empty ADIF value with its character count; absent optional values produce no field.
 const adifField = (key, value) => (value ? `<${key}:${Array.from(value).length}>${value}` : '');
 
+// Build one ADIF file per exact station callsign, reporting excluded contacts and retained-field warnings.
 export function makeOutputs(qsos, summits, now = new Date()) {
   const groups = new Map();
   const skipped = [];
   const warnings = [];
   for (const qso of qsos) {
+    // Own-summit locators are required for activation contacts; chaser-only contacts have no own summit.
     const ownLocator = summits.get(qso.summit)?.locator;
     if (qso.summit && !validLocator(ownLocator || '')) {
       skipped.push(`Row ${qso.line}: ${qso.summit} has no locator; QSO excluded.`);
       continue;
     }
+    // Worked locators are optional: an invalid value omits GRIDSQUARE while retaining the contact.
     const workedLocator = summits.get(qso.other)?.locator;
     if (workedLocator && !validLocator(workedLocator)) {
       warnings.push(
@@ -283,6 +301,7 @@ export function makeOutputs(qsos, summits, now = new Date()) {
     }
     groups.get(qso.station).push(record);
   }
+  // ADIF requires a compact UTC creation timestamp; filenames use a filesystem-safe representation.
   const timestamp = now.toISOString().slice(0, 19);
   const adifTimestamp = timestamp.replace(/[-:]/g, '').replace('T', ' ');
   const filenameTimestamp = timestamp.replace('T', '_').replace(/:/g, '-');
@@ -304,6 +323,7 @@ export function makeOutputs(qsos, summits, now = new Date()) {
   return { files, skipped, warnings };
 }
 
+// Apply an optional inclusive UTC start date and count the intentionally excluded contacts.
 // Dates are compared in the same UTC calendar format as QSO_DATE.
 export function filterByDate(qsos, startDate = '') {
   if (!startDate) {
@@ -317,6 +337,7 @@ export function filterByDate(qsos, startDate = '') {
   ) {
     throw new Error('Choose a valid start date or clear the date field.');
   }
+  // Fixed-width YYYYMMDD strings sort chronologically; the cutoff itself is included.
   const cutoff = startDate.replaceAll('-', '');
   const included = qsos.filter((qso) => qso.date >= cutoff);
   return { qsos: included, filtered: qsos.length - included.length };
@@ -335,7 +356,9 @@ export function proposeMerge(station) {
   return parts.slice(0, indexes[0] + 1).join('/');
 }
 
+// Generate additional exports from reviewed mappings without mutating contacts or the original station files.
 export function makeMergedOutputs(qsos, summits, mappings, now = new Date()) {
+  // Contacts already logged under the destination callsign stay out of these additional files.
   const merged = qsos
     .filter((qso) => mappings.has(qso.station) && mappings.get(qso.station) !== qso.station)
     .map((qso) => ({ ...qso, station: mappings.get(qso.station) }));
@@ -346,6 +369,7 @@ export function makeMergedOutputs(qsos, summits, mappings, now = new Date()) {
   }));
 }
 
+// Apply normal row validation, require a worked summit, and label supplementary-log warnings as S2S.
 export function readS2S(text) {
   const rows = parseCSV(text);
   const warnings = [];
@@ -380,7 +404,7 @@ function groupContacts(qsos, keyForContact) {
 
 // Enrich only unambiguous one-to-one matches; never append unmatched S2S records.
 export function joinS2S(activator, s2s) {
-  // Treat HHmm and HHmm00 as the same UTC contact time.
+  // Treat HHmm and HHmm00 as the same UTC contact time; differing comments do not prevent a match.
   const keyForContact = (qso) =>
     JSON.stringify([
       qso.station,
@@ -399,6 +423,7 @@ export function joinS2S(activator, s2s) {
   let unmatched = 0;
   let ambiguous = 0;
   let conflicts = 0;
+  // Associate enrichment with the original contact object, then return copies instead of editing inputs.
   const additions = new Map();
   for (const [contactKey, records] of s2sGroups) {
     const contacts = activatorGroups.get(contactKey) || [];
@@ -407,6 +432,7 @@ export function joinS2S(activator, s2s) {
       warnings.push(`S2S row ${records[0].line}: no matching activator contact; not added.`);
       continue;
     }
+    // Multiple candidates on either side cannot be joined safely, even if their matching keys agree.
     if (contacts.length !== 1 || records.length !== 1) {
       ambiguous += records.length;
       warnings.push(
@@ -416,6 +442,7 @@ export function joinS2S(activator, s2s) {
     }
     const qso = contacts[0];
     const workedSummitRef = records[0].other;
+    // Retain the base reference when supplementary data conflicts with it.
     if (qso.other && qso.other !== workedSummitRef) {
       conflicts++;
       warnings.push(
@@ -439,6 +466,7 @@ export function joinS2S(activator, s2s) {
   };
 }
 
+// Identify chaser, S2S or activator exports from their layout, using filename hints where needed.
 export function detectLogType(text, name = '') {
   // Internal layout takes precedence over filename hints.
   const rows = parseCSV(text).filter((row) => row.some((value) => value.trim()));
@@ -482,13 +510,15 @@ export function detectLogType(text, name = '') {
   );
 }
 
+// Parse chaser contacts with a required worked summit and no required own activation summit.
 export function readChaser(text) {
   return readLog(text, { chaser: true });
 }
 
+// Enrich matching contacts and append unique chaser-only contacts without guessing their own location.
 // Chaser matches omit our summit: chaser-only contacts have no activation location.
 export function joinChaser(base, chaser) {
-  // Treat HHmm and HHmm00 as the same UTC contact time.
+  // Treat HHmm and HHmm00 as the same UTC contact time; differing comments do not prevent a match.
   const keyForContact = (qso) =>
     JSON.stringify([
       qso.station,
@@ -499,6 +529,7 @@ export function joinChaser(base, chaser) {
       qso.submode || '',
       qso.call
     ]);
+  // Work on copies so enrichment does not affect a later rebuild from the uploaded source logs.
   const qsos = base.map((qso) => ({ ...qso }));
   const baseGroups = groupContacts(qsos, keyForContact);
   const chaserGroups = groupContacts(chaser, keyForContact);
@@ -517,6 +548,7 @@ export function joinChaser(base, chaser) {
       continue;
     }
     const source = rows[0];
+    // Unlike unmatched S2S records, a unique chaser-only contact adds a useful standalone QSO.
     if (!matches.length) {
       qsos.push({ ...source });
       added++;
