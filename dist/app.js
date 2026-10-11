@@ -14,15 +14,7 @@ import {
   readChaser,
   joinChaser
 } from './converter.js';
-import { createSummitLookup } from './summit-cache.js';
-
-let summitStorage;
-try {
-  summitStorage = localStorage;
-} catch {
-  // Summit lookup can use its in-memory cache when browser storage is unavailable.
-}
-const cachedSummitLookup = createSummitLookup(lookupSummit, summitStorage);
+import { summitDataset } from './summit-data.js';
 
 // Keep log state in memory; only summit data and display preferences may be persisted.
 // Resolve the fixed element IDs shared by the page markup and its UI handlers.
@@ -209,7 +201,7 @@ function rebuildLog() {
       ? `${chaserLog.qsos.length} chaser contacts. Own summit and locator are omitted; ` +
         'worked summit locators can be looked up.'
       : '';
-  // Manual locators and mapping choices belong to this selection; cached API data stays reusable.
+  // Manual locators and mapping choices belong to this selection; saved summit data stays reusable.
   logRevision++;
   summits = new Map();
   failedLookups = new Set();
@@ -483,9 +475,14 @@ function createDownloadRow(file) {
 // Enrich unique summits sequentially and collect recoverable lookup failures for manual entry.
 async function fetchSummitLocators(qsos, revision, warnings) {
   const summitRefs = getSummitReferences(qsos);
+  let dataset;
+  let datasetError;
+  if (summitRefs.some(ref => !validLocator(summits.get(ref)?.locator || '') || summits.get(ref)?.automatic)) {
+    try { dataset = await summitDataset.prepare(); } catch (error) { datasetError = error; }
+  }
   for (let index = 0; index < summitRefs.length; index++) {
     const summitRef = summitRefs[index];
-    // Keep valid manual values; automatic values still go through the cache's expiry check.
+    // Keep valid manual values; refresh automatic values from this dataset snapshot.
     if (validLocator(summits.get(summitRef)?.locator || '') && !summits.get(summitRef)?.automatic) {
       failedLookups.delete(summitRef);
       continue;
@@ -493,7 +490,8 @@ async function fetchSummitLocators(qsos, revision, warnings) {
     getElement('status').textContent =
       `Looking up ${summitRef} (${index + 1}/${summitRefs.length})…`;
     try {
-      const data = await cachedSummitLookup(summitRef);
+      if (datasetError) throw datasetError;
+      const data = await lookupSummit(summitRef, dataset);
       // A resolved request must not update summit data for a replaced log selection.
       if (revision !== logRevision) {
         return;
@@ -610,7 +608,7 @@ async function convertLog() {
         );
       }
     }
-    // An empty date selection is a recoverable result, not an API or conversion failure.
+    // An empty date selection is a recoverable result, not a download or conversion failure.
     if (!qsos.length) {
       getElement('empty').hidden = false;
       getElement('resultBadge').textContent = 'NO CONTACTS IN DATE SELECTION';
@@ -807,3 +805,6 @@ getElement('readingReset').addEventListener('click', () => {
   writeStoredPreference('sotatoadif-reading', null);
 });
 applyReading();
+
+// Check once on page load; an unavailable first download can be retried during conversion.
+summitDataset.prepare().catch(() => {});

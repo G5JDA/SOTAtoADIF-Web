@@ -9,7 +9,7 @@ SOTAtoADIF Web is a dependency-free browser edition based on the older [SOTAtoAD
 ## Features
 
 - Import SOTA V2 activator, S2S, and chaser CSV exports, individually or together.
-- Look up summit names and Maidenhead locators through the SOTA API, with a 24-hour local cache.
+- Look up summit names and calculate six-character Maidenhead locators from the SOTA summit CSV, with a locally saved dataset checked for updates on each page load.
 - Enter summit locators manually when automatic lookup is unavailable.
 - Filter contacts by an inclusive UTC start date.
 - Create one ADIF file per station callsign, with optional additional exports using reviewed callsign-suffix mappings.
@@ -38,9 +38,9 @@ ADIF comments are converted to printable ASCII: accents are removed where possib
 
 ## Privacy
 
-CSV parsing, validation, ADIF generation, and downloads happen locally in your browser. Logs are not uploaded or stored persistently. Optional summit enrichment sends only summit references to the SOTA API; successful summit data and interface preferences are stored locally on your device. There is no conversion backend or telemetry.
+CSV parsing, validation, ADIF generation, and downloads happen locally in your browser. Logs are not uploaded or stored persistently. The page downloads the public summit list without sending summit references or log content. Compact summit JSON is saved in IndexedDB; interface preferences are stored locally on your device. There is no conversion backend or telemetry.
 
-After the page has loaded, you can disable automatic lookup and enter locators manually to convert without API access. The app does not include a service worker or guarantee offline page availability.
+After the page has loaded, you can disable automatic lookup and enter locators manually to convert without network access. The app does not include a service worker or guarantee offline page availability.
 
 ## Running locally
 
@@ -79,3 +79,5 @@ This browser edition is based on [G5JDA/SOTAtoADIF](https://github.com/G5JDA/SOT
 This web port was developed with assistance from AI tools. All code is reviewed by a human for gross errors and security issues. This review does not guarantee that the software is free of bugs or vulnerabilities.
 
 Review conversion warnings and check the generated ADIF files before importing them into your logbook or submitting them to LoTW through TQSL. If you find a problem, please report it through the repository's issues, using synthetic examples rather than private logs or credentials.
+
+The first summit download is approximately 25 MB. Later visits use saved summit data immediately while checking `Last-Modified` for an update. Failed updates retain the saved dataset; unavailable storage allows conversion using data held in memory. Retired summit references remain available for historical logs. Old per-summit cache entries are no longer read.
