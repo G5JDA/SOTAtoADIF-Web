@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// ADIF modes and their submodes, inherited from the original Python converter.
+// ADIF 3.1.7 modes and submodes, based on the original Python converter.
+// Source: https://adif.org.uk/317/ADIF_317.htm#Mode_Enumeration
 // A null value means the mode has no listed submodes.
 export const modes = {
   AM: null,
@@ -11,21 +12,24 @@ export const modes = {
   CW: ['PCW'],
   DIGITALVOICE: ['C4FM', 'DMR', 'DSTAR', 'FREEDV', 'M17'],
   DOMINO: ['DOM-M', 'DOM4', 'DOM5', 'DOM8', 'DOM11', 'DOM16', 'DOM22', 'DOM44', 'DOM88', 'DOMINOEX', 'DOMINOF'],
-  DYNAMIC: ['VARA HF', 'VARA SATELLITE', 'VARA FM 1200', 'VARA FM 9600'],
+  DYNAMIC: ['FREEDATA', 'VARA HF', 'VARA SATELLITE', 'VARA FM 1200', 'VARA FM 9600'],
   FAX: null,
   FM: null,
+  FSK: ['SCAMP_FAST', 'SCAMP_SLOW', 'SCAMP_VSLOW'],
   FSK441: null,
   FT8: null,
-  HELL: ['FMHELL', 'FSKHELL', 'HELL80', 'HELLX5', 'HELLX9', 'HFSK', 'PSKHELL', 'SLOWHELL'],
+  HELL: ['FMHELL', 'FSKH105', 'FSKH245', 'FSKHELL', 'HELL80', 'HELLX5', 'HELLX9', 'HFSK', 'PSKHELL', 'SLOWHELL'],
   ISCAT: ['ISCAT-A', 'ISCAT-B'],
   JT4: ['JT4A', 'JT4B', 'JT4C', 'JT4D', 'JT4E', 'JT4F', 'JT4G'],
   JT6M: null,
   JT9: ['JT9-1', 'JT9-2', 'JT9-5', 'JT9-10', 'JT9-30', 'JT9A', 'JT9B', 'JT9C', 'JT9D', 'JT9E', 'JT9E FAST', 'JT9F', 'JT9F FAST', 'JT9G', 'JT9G FAST', 'JT9H', 'JT9H FAST'],
   JT44: null,
   JT65: ['JT65A', 'JT65B', 'JT65B2', 'JT65C', 'JT65C2'],
-  MFSK: ['FSQCALL', 'FST4', 'FST4W', 'FT4', 'JS8', 'JTMS', 'MFSK4', 'MFSK8', 'MFSK11', 'MFSK16', 'MFSK22', 'MFSK31', 'MFSK32', 'MFSK64', 'MFSK64L', 'MFSK128', 'MFSK128L', 'Q65'],
+  MFSK: ['FSQCALL', 'FST4', 'FST4W', 'FT2', 'FT4', 'JS8', 'JTMS', 'MFSK4', 'MFSK8', 'MFSK11', 'MFSK16', 'MFSK22', 'MFSK31', 'MFSK32', 'MFSK64', 'MFSK64L', 'MFSK128', 'MFSK128L', 'Q65'],
   MSK144: null,
   MT63: null,
+  MTONE: ['SCAMP_OO', 'SCAMP_OO_SLW'],
+  OFDM: ['RIBBIT_PIX', 'RIBBIT_SMS'],
   OLIVIA: ['OLIVIA 4/125', 'OLIVIA 4/250', 'OLIVIA 8/250', 'OLIVIA 8/500', 'OLIVIA 16/500', 'OLIVIA 16/1000', 'OLIVIA 32/1000'],
   OPERA: ['OPERA-BEACON', 'OPERA-QSO'],
   PAC: ['PAC2', 'PAC3', 'PAC4'],
