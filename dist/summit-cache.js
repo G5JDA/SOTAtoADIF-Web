@@ -3,63 +3,64 @@ import { validLocator } from './converter.js';
 
 export const CACHE_TTL = 24 * 60 * 60 * 1000;
 const CACHE_KEY_PREFIX = 'sotatoadif-summit:';
+
 export function createSummitLookup(fetchSummit, storage, now = Date.now) {
-  const memory = new Map();
-  const pending = new Map();
+  const memoryCache = new Map();
+  const pendingRequests = new Map();
   function isFreshEntry(entry) {
-    const age = now() - entry?.savedAt;
+    const ageMs = now() - entry?.savedAt;
     return (
-      Number.isFinite(age) &&
-      age >= 0 &&
-      age < CACHE_TTL &&
+      Number.isFinite(ageMs) &&
+      ageMs >= 0 &&
+      ageMs < CACHE_TTL &&
       validLocator(entry?.data?.locator || '')
     );
   }
-  return async function lookup(ref) {
-    ref = ref.trim().toUpperCase();
-    let entry = memory.get(ref);
+  return async function lookup(reference) {
+    const summitRef = reference.trim().toUpperCase();
+    let entry = memoryCache.get(summitRef);
     if (!isFreshEntry(entry)) {
       try {
-        entry = JSON.parse(storage?.getItem(CACHE_KEY_PREFIX + ref) || 'null');
+        entry = JSON.parse(storage?.getItem(CACHE_KEY_PREFIX + summitRef) || 'null');
         if (!isFreshEntry(entry)) {
-          storage?.removeItem(CACHE_KEY_PREFIX + ref);
+          storage?.removeItem(CACHE_KEY_PREFIX + summitRef);
         }
       } catch {
         entry = null;
       }
     }
     if (isFreshEntry(entry)) {
-      memory.set(ref, entry);
+      memoryCache.set(summitRef, entry);
       return { ...entry.data };
     }
     // Concurrent callers share one request; failures are not saved as cache entries.
-    if (pending.has(ref)) {
-      return pending.get(ref);
+    if (pendingRequests.has(summitRef)) {
+      return pendingRequests.get(summitRef);
     }
     const request = (async () => {
-      const data = await fetchSummit(ref);
+      const data = await fetchSummit(summitRef);
       if (!validLocator(data?.locator || '')) {
         throw new Error('No valid locator returned');
       }
       // Keep only summit information used by the converter and its UI.
-      const cached = {
+      const summitData = {
         locator: data.locator.toUpperCase(),
         name: typeof data.name === 'string' ? data.name : ''
       };
-      const entry = { savedAt: now(), data: cached };
-      memory.set(ref, entry);
+      const savedEntry = { savedAt: now(), data: summitData };
+      memoryCache.set(summitRef, savedEntry);
       try {
-        storage?.setItem(CACHE_KEY_PREFIX + ref, JSON.stringify(entry));
+        storage?.setItem(CACHE_KEY_PREFIX + summitRef, JSON.stringify(savedEntry));
       } catch {
         // Storage can be unavailable or full; the in-memory cache still works.
       }
-      return { ...cached };
+      return { ...summitData };
     })();
-    pending.set(ref, request);
+    pendingRequests.set(summitRef, request);
     try {
       return await request;
     } finally {
-      pending.delete(ref);
+      pendingRequests.delete(summitRef);
     }
   };
 }

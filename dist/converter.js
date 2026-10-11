@@ -2,6 +2,12 @@
 // Copyright (c) 2024 Jack G5JDA. Browser port licensed AGPL-3.0-or-later.
 import { modes } from './modes.js';
 
+const LOG_COLUMN_COUNT = 10;
+const S2S_COLUMN_COUNT = 12;
+const OWN_SUMMIT_COLUMN = 2;
+const WORKED_SUMMIT_COLUMN = 8;
+const SUMMIT_LOOKUP_TIMEOUT_MS = 15000;
+
 // CSV fields may contain quoted commas, escaped quotes and embedded line breaks.
 export function parseCSV(text) {
   text = text.replace(/^\uFEFF/, '');
@@ -46,7 +52,7 @@ export function parseCSV(text) {
 }
 
 // Inclusive band boundaries in MHz, followed by the ADIF band name.
-const bands = [
+const frequencyBands = [
   [0.1357, 0.1378, '2190m'],
   [0.472, 0.479, '630m'],
   [0.501, 0.504, '560m'],
@@ -81,28 +87,34 @@ const bands = [
   [241000, 250000, '1mm'],
   [300000, 7500000, 'submm']
 ];
-export function frequencyToBand(value) {
-  const match = value.match(/^(\d+(?:\.\d+)?)\s*MHz$/i);
-  return match
-    ? bands.find(([minimum, maximum]) => +match[1] >= minimum && +match[1] <= maximum)?.[2] || ''
-    : '';
+
+export function frequencyToBand(frequency) {
+  const match = frequency.match(/^(\d+(?:\.\d+)?)\s*MHz$/i);
+  if (!match) {
+    return '';
+  }
+  const frequencyMHz = Number(match[1]);
+  const matchingBand = frequencyBands.find(
+    ([minimum, maximum]) => frequencyMHz >= minimum && frequencyMHz <= maximum
+  );
+  return matchingBand?.[2] || '';
 }
 
 // Preserve SOTA's generic DATA mode as an intentional extension to ADIF's mode enumeration.
 export function modeFor(value) {
-  value = value.toUpperCase();
-  if (value === 'DATA') {
-    return { mode: value };
+  let normalizedMode = value.toUpperCase();
+  if (normalizedMode === 'DATA') {
+    return { mode: normalizedMode };
   }
-  if (value === 'DV') {
-    value = 'DIGITALVOICE';
+  if (normalizedMode === 'DV') {
+    normalizedMode = 'DIGITALVOICE';
   }
-  if (value in modes) {
-    return { mode: value };
+  if (normalizedMode in modes) {
+    return { mode: normalizedMode };
   }
   for (const [mode, submodes] of Object.entries(modes)) {
-    if (submodes?.includes(value)) {
-      return { mode, submode: value };
+    if (submodes?.includes(normalizedMode)) {
+      return { mode, submode: normalizedMode };
     }
   }
   return null;
@@ -114,6 +126,29 @@ export const validCallsign = (value) =>
   /[A-Z]/i.test(value) &&
   /[0-9]/.test(value);
 export const validSummitRef = (value) => /^[A-Z0-9]+\/[A-Z0-9]+-\d{3}$/i.test(value);
+
+// Validate calendar dates explicitly because Date.UTC normalizes impossible dates.
+function parseQsoDateTime(date, time) {
+  const dateParts = date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const timeParts = time.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!dateParts || !timeParts) {
+    return null;
+  }
+  const [, day, month, year] = dateParts;
+  const [, hours, minutes, seconds = ''] = timeParts;
+  const utcDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const isValidDate =
+    Number(year) >= 1930 &&
+    utcDate.getUTCFullYear() === Number(year) &&
+    utcDate.getUTCMonth() === Number(month) - 1 &&
+    utcDate.getUTCDate() === Number(day);
+  const isValidTime = Number(hours) <= 23 && Number(minutes) <= 59 && Number(seconds) <= 59;
+  if (!isValidDate || !isValidTime) {
+    return null;
+  }
+  return { date: year + month + day, time: hours + minutes + seconds };
+}
+
 export function readLog(text, { chaser = false } = {}) {
   const warnings = [];
   const qsos = [];
@@ -122,29 +157,15 @@ export function readLog(text, { chaser = false } = {}) {
     if (row.every((value) => !value.trim()) || row[0] === 'Version') {
       return;
     }
-    if (row[0] !== 'V2' || row.length < 10) {
+    if (row[0] !== 'V2' || row.length < LOG_COLUMN_COUNT) {
       warnings.push(`Row ${line}: expected a SOTA V2 record with 10 columns.`);
       return;
     }
     const [, station, summit, date, time, frequency, mode, call, other, comment] = row.map(
       (value) => value.trim()
     );
-    const dateParts = date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    const timeParts = time.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
-    const utcDate = dateParts
-      ? new Date(Date.UTC(+dateParts[3], +dateParts[2] - 1, +dateParts[1]))
-      : null;
-    if (
-      !dateParts ||
-      +dateParts[3] < 1930 ||
-      utcDate.getUTCFullYear() !== +dateParts[3] ||
-      utcDate.getUTCMonth() !== +dateParts[2] - 1 ||
-      utcDate.getUTCDate() !== +dateParts[1] ||
-      !timeParts ||
-      +timeParts[1] > 23 ||
-      +timeParts[2] > 59 ||
-      +(timeParts[3] || 0) > 59
-    ) {
+    const dateTime = parseQsoDateTime(date, time);
+    if (!dateTime) {
       warnings.push(`Row ${line}: invalid date or UTC time.`);
       return;
     }
@@ -156,8 +177,8 @@ export function readLog(text, { chaser = false } = {}) {
       return;
     }
     const band = frequencyToBand(frequency);
-    const mapped = modeFor(mode);
-    if (!station || !call || (!chaser && !summit) || (chaser && !other) || !band || !mapped) {
+    const modeMapping = modeFor(mode);
+    if (!station || !call || (!chaser && !summit) || (chaser && !other) || !band || !modeMapping) {
       warnings.push(
         `Row ${line}: missing callsign/summit, unsupported frequency, or unknown mode (${frequency}, ${mode}).`
       );
@@ -172,10 +193,10 @@ export function readLog(text, { chaser = false } = {}) {
       chaser,
       station: station.toUpperCase(),
       summit: summit.toUpperCase(),
-      date: dateParts[3] + dateParts[2] + dateParts[1],
-      time: timeParts[1] + timeParts[2] + (timeParts[3] || ''),
+      date: dateTime.date,
+      time: dateTime.time,
       band,
-      ...mapped,
+      ...modeMapping,
       call: call.toUpperCase(),
       other: other.toUpperCase(),
       comment
@@ -185,6 +206,7 @@ export function readLog(text, { chaser = false } = {}) {
 }
 
 export const validLocator = (value) => /^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/i.test(value);
+
 export async function lookupSummit(ref) {
   ref = ref.trim().toUpperCase();
   if (!validSummitRef(ref)) {
@@ -193,7 +215,7 @@ export async function lookupSummit(ref) {
   const path = ref.split('/').map(encodeURIComponent).join('/');
   const response = await fetch('https://api2.sota.org.uk/api/summits/' + path, {
     credentials: 'omit',
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(SUMMIT_LOOKUP_TIMEOUT_MS)
   });
   if (!response.ok || response.status === 204) {
     throw new Error('Summit not found');
@@ -206,31 +228,32 @@ export async function lookupSummit(ref) {
 }
 
 // ADI COMMENT is an ASCII String: preserve readable accents where possible.
-const asciiComment = (value) =>
+const toAsciiComment = (value) =>
   value
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/[^\x20-\x7E]/gu, '?');
-const field = (key, value) => (value ? `<${key}:${Array.from(value).length}>${value}` : '');
+const adifField = (key, value) => (value ? `<${key}:${Array.from(value).length}>${value}` : '');
+
 export function makeOutputs(qsos, summits, now = new Date()) {
   const groups = new Map();
   const skipped = [];
   const warnings = [];
   for (const qso of qsos) {
-    const grid = summits.get(qso.summit)?.locator;
-    if (qso.summit && !validLocator(grid || '')) {
+    const ownLocator = summits.get(qso.summit)?.locator;
+    if (qso.summit && !validLocator(ownLocator || '')) {
       skipped.push(`Row ${qso.line}: ${qso.summit} has no locator; QSO excluded.`);
       continue;
     }
-    const workedGrid = summits.get(qso.other)?.locator;
-    if (workedGrid && !validLocator(workedGrid)) {
+    const workedLocator = summits.get(qso.other)?.locator;
+    if (workedLocator && !validLocator(workedLocator)) {
       warnings.push(
         `Row ${qso.line}: ${qso.other} has an invalid worked locator; GRIDSQUARE omitted, contact retained.`
       );
     }
     const sourceComment = qso.comment || '';
-    const safeComment = asciiComment(sourceComment);
+    const safeComment = toAsciiComment(sourceComment);
     if (safeComment !== sourceComment) {
       warnings.push(
         `Row ${qso.line}: comment converted to ASCII for ADIF; accents removed, line breaks flattened ` +
@@ -242,18 +265,18 @@ export function makeOutputs(qsos, summits, now = new Date()) {
       (qso.other ? `${qso.summit ? ' THX S2S, ' : ''}Your SOTA Ref: ${qso.other}.` : '') +
       (safeComment ? ` ${safeComment}` : '');
     const record =
-      field('CALL', qso.call) +
-      field('STATION_CALLSIGN', qso.station) +
-      field('QSO_DATE', qso.date) +
-      field('TIME_ON', qso.time) +
-      field('MODE', qso.mode) +
-      field('SUBMODE', qso.submode) +
-      field('BAND', qso.band) +
-      field('MY_SOTA_REF', qso.summit) +
-      field('MY_GRIDSQUARE', grid) +
-      field('SOTA_REF', qso.other) +
-      field('GRIDSQUARE', validLocator(workedGrid || '') ? workedGrid : '') +
-      field('COMMENT', comment) +
+      adifField('CALL', qso.call) +
+      adifField('STATION_CALLSIGN', qso.station) +
+      adifField('QSO_DATE', qso.date) +
+      adifField('TIME_ON', qso.time) +
+      adifField('MODE', qso.mode) +
+      adifField('SUBMODE', qso.submode) +
+      adifField('BAND', qso.band) +
+      adifField('MY_SOTA_REF', qso.summit) +
+      adifField('MY_GRIDSQUARE', ownLocator) +
+      adifField('SOTA_REF', qso.other) +
+      adifField('GRIDSQUARE', validLocator(workedLocator || '') ? workedLocator : '') +
+      adifField('COMMENT', comment) +
       '<EOR>\n';
     if (!groups.has(qso.station)) {
       groups.set(qso.station, []);
@@ -261,22 +284,22 @@ export function makeOutputs(qsos, summits, now = new Date()) {
     groups.get(qso.station).push(record);
   }
   const timestamp = now.toISOString().slice(0, 19);
-  const stamp = timestamp.replace(/[-:]/g, '').replace('T', ' ');
+  const adifTimestamp = timestamp.replace(/[-:]/g, '').replace('T', ' ');
+  const filenameTimestamp = timestamp.replace('T', '_').replace(/:/g, '-');
+  const header = [
+    '# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.',
+    adifField('ADIF_VER', '3.1.4'),
+    adifField('PROGRAMID', 'SOTAtoADIF'),
+    adifField('PROGRAMVERSION', 'web-1.0.0'),
+    adifField('CREATED_TIMESTAMP', adifTimestamp),
+    '<EOH>',
+    ''
+  ].join('\n');
   const files = [...groups].map(([station, records]) => ({
     station,
     count: records.length,
-    name: `${station.replace(/[^A-Z0-9-]/g, '-')}_SOTAtoADIF_${timestamp.replace('T', '_').replace(/:/g, '-')}.adi`,
-    text:
-      `# SOTAtoADIF browser edition. Copyright Jack G5JDA. AGPL-3.0-or-later.\n` +
-      field('ADIF_VER', '3.1.4') +
-      '\n' +
-      field('PROGRAMID', 'SOTAtoADIF') +
-      '\n' +
-      field('PROGRAMVERSION', 'web-1.0.0') +
-      '\n' +
-      field('CREATED_TIMESTAMP', stamp) +
-      '\n<EOH>\n' +
-      records.join('')
+    name: `${station.replace(/[^A-Z0-9-]/g, '-')}_SOTAtoADIF_${filenameTimestamp}.adi`,
+    text: header + records.join('')
   }));
   return { files, skipped, warnings };
 }
@@ -299,7 +322,8 @@ export function filterByDate(qsos, startDate = '') {
   return { qsos: included, filtered: qsos.length - included.length };
 }
 
-// Conservative proposals only: users review every source and destination.
+// Preserve everything through the callsign segment, including any overseas prefix.
+// Propose a mapping only when exactly one segment resembles a callsign; users still review it.
 export function proposeMerge(station) {
   const parts = station.toUpperCase().split('/');
   const indexes = parts.flatMap((part, index) =>
@@ -330,7 +354,7 @@ export function readS2S(text) {
     if (row.every((value) => !value.trim()) || row[0] === 'Version') {
       continue;
     }
-    if (row.length < 10 || !row[8]?.trim()) {
+    if (row.length < LOG_COLUMN_COUNT || !row[WORKED_SUMMIT_COLUMN]?.trim()) {
       warnings.push(`S2S row ${index + 1}: worked summit is required.`);
     }
   }
@@ -341,9 +365,23 @@ export function readS2S(text) {
   };
 }
 
+// Keep every candidate in a group so joins can reject ambiguous repeated contacts.
+function groupContacts(qsos, keyForContact) {
+  const groups = new Map();
+  for (const qso of qsos) {
+    const key = keyForContact(qso);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(qso);
+  }
+  return groups;
+}
+
 // Enrich only unambiguous one-to-one matches; never append unmatched S2S records.
 export function joinS2S(activator, s2s) {
-  const key = (qso) =>
+  // Treat HHmm and HHmm00 as the same UTC contact time.
+  const keyForContact = (qso) =>
     JSON.stringify([
       qso.station,
       qso.summit,
@@ -354,27 +392,16 @@ export function joinS2S(activator, s2s) {
       qso.submode || '',
       qso.call
     ]);
-  const groups = (qsos) => {
-    const map = new Map();
-    for (const qso of qsos) {
-      const contactKey = key(qso);
-      if (!map.has(contactKey)) {
-        map.set(contactKey, []);
-      }
-      map.get(contactKey).push(qso);
-    }
-    return map;
-  };
-  const main = groups(activator);
-  const extra = groups(s2s);
+  const activatorGroups = groupContacts(activator, keyForContact);
+  const s2sGroups = groupContacts(s2s, keyForContact);
   const warnings = [];
   let enriched = 0;
   let unmatched = 0;
   let ambiguous = 0;
   let conflicts = 0;
   const additions = new Map();
-  for (const [contactKey, records] of extra) {
-    const contacts = main.get(contactKey) || [];
+  for (const [contactKey, records] of s2sGroups) {
+    const contacts = activatorGroups.get(contactKey) || [];
     if (!contacts.length) {
       unmatched += records.length;
       warnings.push(`S2S row ${records[0].line}: no matching activator contact; not added.`);
@@ -388,8 +415,8 @@ export function joinS2S(activator, s2s) {
       continue;
     }
     const qso = contacts[0];
-    const ref = records[0].other;
-    if (qso.other && qso.other !== ref) {
+    const workedSummitRef = records[0].other;
+    if (qso.other && qso.other !== workedSummitRef) {
       conflicts++;
       warnings.push(
         `S2S row ${records[0].line}: worked summit conflicts with activator row ${qso.line}; ` +
@@ -397,7 +424,7 @@ export function joinS2S(activator, s2s) {
       );
       continue;
     }
-    additions.set(qso, ref);
+    additions.set(qso, workedSummitRef);
     enriched++;
   }
   return {
@@ -419,13 +446,18 @@ export function detectLogType(text, name = '') {
   const records = rows.filter((row) => row[0] === 'V2');
   if (
     records.length &&
-    records.every((row) => row.length >= 10 && !row[2]?.trim() && row[8]?.trim())
+    records.every(
+      (row) =>
+        row.length >= LOG_COLUMN_COUNT &&
+        !row[OWN_SUMMIT_COLUMN]?.trim() &&
+        row[WORKED_SUMMIT_COLUMN]?.trim()
+    )
   ) {
     return 'chaser';
   }
   if (
     header?.some((value) => /^(ChaserPoints|ActivatorPoints)$/i.test(value.trim())) ||
-    (records.length && records.every((row) => row.length === 12))
+    (records.length && records.every((row) => row.length === S2S_COLUMN_COUNT))
   ) {
     return 's2s';
   }
@@ -435,7 +467,10 @@ export function detectLogType(text, name = '') {
   if (/(?:^|[_\-])s2s(?:[_\-.]|$)/i.test(name)) {
     return 's2s';
   }
-  if (records.length && records.some((row) => row.length >= 10 && row.length < 12)) {
+  if (
+    records.length &&
+    records.some((row) => row.length >= LOG_COLUMN_COUNT && row.length < S2S_COLUMN_COUNT)
+  ) {
     return 'activator';
   }
   if (/(?:^|[_\-])activator(?:[_\-.]|$)/i.test(name)) {
@@ -453,7 +488,8 @@ export function readChaser(text) {
 
 // Chaser matches omit our summit: chaser-only contacts have no activation location.
 export function joinChaser(base, chaser) {
-  const key = (qso) =>
+  // Treat HHmm and HHmm00 as the same UTC contact time.
+  const keyForContact = (qso) =>
     JSON.stringify([
       qso.station,
       qso.date,
@@ -464,29 +500,15 @@ export function joinChaser(base, chaser) {
       qso.call
     ]);
   const qsos = base.map((qso) => ({ ...qso }));
-  const groups = new Map();
-  const extras = new Map();
+  const baseGroups = groupContacts(qsos, keyForContact);
+  const chaserGroups = groupContacts(chaser, keyForContact);
   const warnings = [];
   let enriched = 0;
   let added = 0;
   let ambiguous = 0;
   let conflicts = 0;
-  for (const qso of qsos) {
-    const contactKey = key(qso);
-    if (!groups.has(contactKey)) {
-      groups.set(contactKey, []);
-    }
-    groups.get(contactKey).push(qso);
-  }
-  for (const qso of chaser) {
-    const contactKey = key(qso);
-    if (!extras.has(contactKey)) {
-      extras.set(contactKey, []);
-    }
-    extras.get(contactKey).push(qso);
-  }
-  for (const [contactKey, rows] of extras) {
-    const matches = groups.get(contactKey) || [];
+  for (const [contactKey, rows] of chaserGroups) {
+    const matches = baseGroups.get(contactKey) || [];
     if (rows.length !== 1 || matches.length > 1) {
       ambiguous += rows.length;
       warnings.push(

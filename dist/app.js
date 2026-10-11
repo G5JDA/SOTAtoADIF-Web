@@ -26,72 +26,75 @@ const cachedSummitLookup = createSummitLookup(lookupSummit, summitStorage);
 
 // Keep log state in memory; only summit data and display preferences may be persisted.
 const getElement = (id) => document.getElementById(id);
+const mergeValidators = new WeakMap();
 let combinedLog = null;
 let summits = new Map();
 let failedLookups = new Set();
 let logRevision = 0;
-let busy = false;
+let isBusy = false;
 let mergeMappings = new Map();
-let mainLog = null;
+let activatorLog = null;
 let s2sLog = null;
-let mainName = '';
-let s2sName = '';
+let activatorFilename = '';
+let s2sFilename = '';
 let chaserLog = null;
-let chaserName = '';
-function setBusy(value) {
-  busy = value;
-  getElement('convert').setAttribute('aria-disabled', String(value));
-  getElement('file').disabled = value;
-  getElement('clearChaser').disabled = value || !chaserLog;
-  getElement('clearMain').disabled = value || !mainLog;
-  getElement('clearS2S').disabled = value || !s2sLog;
-  getElement('enrich').disabled = value;
-  getElement('startDate').disabled = value;
-  getElement('mergeEnabled').disabled = value;
+let chaserFilename = '';
+
+function setBusy(disabled) {
+  isBusy = disabled;
+  getElement('convert').setAttribute('aria-disabled', String(disabled));
+  getElement('file').disabled = disabled;
+  getElement('clearChaser').disabled = disabled || !chaserLog;
+  getElement('clearMain').disabled = disabled || !activatorLog;
+  getElement('clearS2S').disabled = disabled || !s2sLog;
+  getElement('enrich').disabled = disabled;
+  getElement('startDate').disabled = disabled;
+  getElement('mergeEnabled').disabled = disabled;
   for (const input of document.querySelectorAll('#mergeRows input')) {
-    input.disabled = value;
+    input.disabled = disabled;
   }
   for (const input of document.querySelectorAll('#summitRows input')) {
-    input.disabled = value;
+    input.disabled = disabled;
   }
-  getElement('drop').setAttribute('aria-disabled', String(value));
+  getElement('drop').setAttribute('aria-disabled', String(disabled));
 }
+
 async function readFiles(files) {
-  if (busy || !files?.length) {
+  if (isBusy || !files?.length) {
     return;
   }
   setBusy(true);
   getElement('results').hidden = true;
   // Parse the entire selection before replacing any previously loaded log.
-  const pending = new Map();
-  const readers = { activator: readLog, s2s: readS2S, chaser: readChaser };
-  let currentName = 'CSV';
+  const pendingLogs = new Map();
+  const logReaders = { activator: readLog, s2s: readS2S, chaser: readChaser };
+  let currentFilename = 'CSV';
   try {
     for (const file of Array.from(files)) {
-      currentName = file.name;
+      currentFilename = file.name;
       const text = await file.text();
       const type = detectLogType(text, file.name);
-      if (pending.has(type)) {
+      if (pendingLogs.has(type)) {
         throw new Error(
           `Select only one ${type} log at a time. No files from this selection were applied.`
         );
       }
-      pending.set(type, {
+      pendingLogs.set(type, {
         name: file.name,
-        log: readers[type](text)
+        log: logReaders[type](text)
       });
     }
-    if (pending.has('activator')) {
-      mainLog = pending.get('activator').log;
-      mainName = pending.get('activator').name;
+    if (pendingLogs.has('activator')) {
+      activatorLog = pendingLogs.get('activator').log;
+      activatorFilename = pendingLogs.get('activator').name;
     }
-    if (pending.has('s2s')) {
-      s2sLog = pending.get('s2s').log;
-      s2sName = pending.get('s2s').name;
+    if (pendingLogs.has('s2s')) {
+      s2sLog = pendingLogs.get('s2s').log;
+      s2sFilename = pendingLogs.get('s2s').name;
     }
-    if (pending.has('chaser')) {
-      chaserLog = pending.get('chaser').log;
-      chaserName = pending.get('chaser').name;
+    if (pendingLogs.has('chaser')) {
+      chaserLog = pendingLogs.get('chaser').log;
+      chaserFilename = pendingLogs.get('chaser').name;
     }
     rebuildLog();
   } catch (error) {
@@ -99,7 +102,7 @@ async function readFiles(files) {
     getElement('convert').disabled = !combinedLog?.qsos.length;
     getElement('resultBadge').textContent = 'FILE READ FAILED';
     getElement('status').textContent =
-      `Could not read ${currentName}. Select the file again or export a new CSV. ` +
+      `Could not read ${currentFilename}. Select the file again or export a new CSV. ` +
       `${error.message} Previously loaded files were retained.`;
   } finally {
     setBusy(false);
@@ -107,38 +110,38 @@ async function readFiles(files) {
   }
 }
 getElement('clearS2S').addEventListener('click', () => {
-  if (busy) {
+  if (isBusy) {
     return;
   }
   s2sLog = null;
-  s2sName = '';
+  s2sFilename = '';
   rebuildLog();
   setBusy(false);
   getElement('file').focus();
 });
 getElement('clearMain').addEventListener('click', () => {
-  if (busy) {
+  if (isBusy) {
     return;
   }
-  mainLog = null;
-  mainName = '';
+  activatorLog = null;
+  activatorFilename = '';
   rebuildLog();
   setBusy(false);
   getElement('file').focus();
 });
 getElement('clearChaser').addEventListener('click', () => {
-  if (busy) {
+  if (isBusy) {
     return;
   }
   chaserLog = null;
-  chaserName = '';
+  chaserFilename = '';
   rebuildLog();
   setBusy(false);
   getElement('file').focus();
 });
-function warn(messages) {
+function renderWarnings(messages) {
   getElement('warningBox').hidden = !messages.length;
-  getElement('warningBox').open = !!messages.length;
+  getElement('warningBox').open = messages.length > 0;
   getElement('warningTitle').textContent =
     `${messages.length} warning${messages.length === 1 ? '' : 's'} · review excluded rows and lookups`;
   getElement('warnings').replaceChildren(
@@ -152,43 +155,43 @@ function warn(messages) {
 
 function rebuildLog() {
   getElement('fileLabel').textContent = 'Drop your SOTA CSV files here';
-  getElement('mainName').textContent = mainLog ? `Activator: ${mainName}` : '';
-  getElement('s2sName').textContent = s2sLog ? `S2S: ${s2sName}` : '';
-  getElement('loadedFiles').hidden = !mainLog && !s2sLog && !chaserLog;
+  getElement('mainName').textContent = activatorLog ? `Activator: ${activatorFilename}` : '';
+  getElement('s2sName').textContent = s2sLog ? `S2S: ${s2sFilename}` : '';
+  getElement('loadedFiles').hidden = !activatorLog && !s2sLog && !chaserLog;
   getElement('chaserFileRow').hidden = !chaserLog;
-  getElement('chaserName').textContent = chaserLog ? `Chaser: ${chaserName}` : '';
-  getElement('mainFileRow').hidden = !mainLog;
+  getElement('chaserName').textContent = chaserLog ? `Chaser: ${chaserFilename}` : '';
+  getElement('mainFileRow').hidden = !activatorLog;
   getElement('s2sFileRow').hidden = !s2sLog;
-  combinedLog = mainLog || s2sLog || chaserLog;
-  const joined = mainLog && s2sLog ? joinS2S(mainLog.qsos, s2sLog.qsos) : null;
-  if (joined) {
+  combinedLog = activatorLog || s2sLog || chaserLog;
+  const s2sJoin = activatorLog && s2sLog ? joinS2S(activatorLog.qsos, s2sLog.qsos) : null;
+  if (s2sJoin) {
     combinedLog = {
-      qsos: joined.qsos,
-      warnings: mainLog.warnings,
-      lookupWarnings: [...s2sLog.warnings, ...joined.warnings]
+      qsos: s2sJoin.qsos,
+      warnings: activatorLog.warnings,
+      lookupWarnings: [...s2sLog.warnings, ...s2sJoin.warnings]
     };
   }
   getElement('s2sSummary').hidden = !s2sLog;
-  getElement('s2sSummary').textContent = joined
-    ? `${joined.enriched} S2S contacts matched; ${joined.unmatched} unmatched, ` +
-      `${joined.ambiguous} ambiguous, ${joined.conflicts} conflicting. ` +
+  getElement('s2sSummary').textContent = s2sJoin
+    ? `${s2sJoin.enriched} S2S contacts matched; ${s2sJoin.unmatched} unmatched, ` +
+      `${s2sJoin.ambiguous} ambiguous, ${s2sJoin.conflicts} conflicting. ` +
       'S2S-only unmatched contacts are not appended.'
     : s2sLog
       ? `${s2sLog.qsos.length} S2S contacts available for standalone conversion.`
       : '';
-  const combined =
-    chaserLog && (mainLog || s2sLog) ? joinChaser(combinedLog.qsos, chaserLog.qsos) : null;
-  if (combined) {
+  const chaserJoin =
+    chaserLog && (activatorLog || s2sLog) ? joinChaser(combinedLog.qsos, chaserLog.qsos) : null;
+  if (chaserJoin) {
     combinedLog = {
-      qsos: combined.qsos,
+      qsos: chaserJoin.qsos,
       warnings: [...combinedLog.warnings, ...chaserLog.warnings],
-      lookupWarnings: [...(combinedLog.lookupWarnings || []), ...combined.warnings]
+      lookupWarnings: [...(combinedLog.lookupWarnings || []), ...chaserJoin.warnings]
     };
   }
   getElement('chaserSummary').hidden = !chaserLog;
-  getElement('chaserSummary').textContent = combined
-    ? `${combined.enriched} chaser contacts matched; ${combined.added} additional contacts; ` +
-      `${combined.ambiguous} ambiguous, ${combined.conflicts} conflicting. ` +
+  getElement('chaserSummary').textContent = chaserJoin
+    ? `${chaserJoin.enriched} chaser contacts matched; ${chaserJoin.added} additional contacts; ` +
+      `${chaserJoin.ambiguous} ambiguous, ${chaserJoin.conflicts} conflicting. ` +
       'Chaser-only contacts have no own summit or locator.'
     : chaserLog
       ? `${chaserLog.qsos.length} chaser contacts. Own summit and locator are omitted; ` +
@@ -206,94 +209,98 @@ function rebuildLog() {
     ? `${combinedLog.qsos.length} valid QSOs found. Times are UTC. Review any warning details below.`
     : 'Choose an activator, S2S or chaser CSV file to get started.';
   getElement('convert').disabled = !combinedLog?.qsos.length;
-  warn([...(combinedLog?.warnings || []), ...(combinedLog?.lookupWarnings || [])]);
+  renderWarnings([...(combinedLog?.warnings || []), ...(combinedLog?.lookupWarnings || [])]);
   renderSummits();
 }
 
-function invalidateMerge() {
+function invalidateExports() {
   getElement('results').hidden = true;
   getElement('empty').hidden = false;
   getElement('resultBadge').textContent = 'RECONVERT TO UPDATE';
   getElement('status').textContent = 'Export options changed. Convert again to update downloads.';
 }
 
+function createMergeRow(station, index) {
+  const mergeRow = document.createElement('div');
+  mergeRow.className = 'merge-row';
+  const includeLabel = document.createElement('label');
+  includeLabel.className = 'check';
+  const includeCheckbox = document.createElement('input');
+  includeCheckbox.type = 'checkbox';
+  includeCheckbox.checked = mergeMappings.has(station);
+  const callsignText = document.createElement('span');
+  callsignText.textContent = `Include ${station}`;
+  includeLabel.append(includeCheckbox, callsignText);
+  const destinationLabel = document.createElement('label');
+  destinationLabel.textContent = `Destination for ${station}`;
+  const destinationInput = document.createElement('input');
+  destinationInput.type = 'text';
+  destinationInput.value = mergeMappings.get(station) || proposeMerge(station);
+  destinationInput.id = `merge-target-${index}`;
+  destinationLabel.htmlFor = destinationInput.id;
+  destinationInput.setAttribute('aria-label', `Destination for ${station}`);
+  destinationInput.placeholder = 'Operating callsign';
+  const validationMessage = document.createElement('span');
+  validationMessage.id = `merge-error-${index}`;
+  validationMessage.className = 'locator-error';
+  validationMessage.hidden = true;
+  destinationInput.setAttribute('aria-describedby', validationMessage.id);
+  const validateDestination = () => {
+    const isInvalid =
+      includeCheckbox.checked &&
+      !validMergeTarget(station, destinationInput.value.trim().toUpperCase());
+    destinationInput.setAttribute('aria-invalid', String(isInvalid));
+    validationMessage.hidden = !isInvalid;
+    validationMessage.textContent = isInvalid
+      ? 'Enter a different operating callsign using letters, digits and slashes, or deselect this mapping.'
+      : '';
+    return !isInvalid;
+  };
+  // Conversion validates the currently rendered destinations and focuses the first invalid input.
+  mergeValidators.set(destinationInput, validateDestination);
+  validateDestination();
+  const updateMapping = () => {
+    if (isBusy) {
+      return;
+    }
+    const target = destinationInput.value.trim().toUpperCase();
+    if (includeCheckbox.checked) {
+      mergeMappings.set(station, target);
+    } else {
+      mergeMappings.delete(station);
+    }
+    validateDestination();
+    invalidateExports();
+  };
+  includeCheckbox.addEventListener('change', updateMapping);
+  destinationInput.addEventListener('input', updateMapping);
+  mergeRow.append(includeLabel, destinationLabel, destinationInput, validationMessage);
+  return mergeRow;
+}
+
 function renderMergeOptions() {
   getElement('mergePanel').hidden = !getElement('mergeEnabled').checked;
-  const stations = [...new Set((combinedLog?.qsos || []).map((qso) => qso.station))].filter((s) =>
-    s.includes('/')
+  const stations = [...new Set((combinedLog?.qsos || []).map((qso) => qso.station))].filter(
+    (station) => station.includes('/')
   );
-  getElement('mergeEmpty').hidden = !!stations.length;
-  getElement('mergeRows').replaceChildren(
-    ...stations.map((station, index) => {
-      const row = document.createElement('div');
-      row.className = 'merge-row';
-      const label = document.createElement('label');
-      label.className = 'check';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = mergeMappings.has(station);
-      const name = document.createElement('span');
-      name.textContent = `Include ${station}`;
-      label.append(check, name);
-      const targetLabel = document.createElement('label');
-      targetLabel.textContent = `Destination for ${station}`;
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = mergeMappings.get(station) || proposeMerge(station);
-      input.id = `merge-target-${index}`;
-      targetLabel.htmlFor = input.id;
-      input.setAttribute('aria-label', `Destination for ${station}`);
-      input.placeholder = 'Operating callsign';
-      const error = document.createElement('span');
-      error.id = `merge-error-${index}`;
-      error.className = 'locator-error';
-      error.hidden = true;
-      input.setAttribute('aria-describedby', error.id);
-      const validate = () => {
-        const invalid =
-          check.checked && !validMergeTarget(station, input.value.trim().toUpperCase());
-        input.setAttribute('aria-invalid', String(invalid));
-        error.hidden = !invalid;
-        error.textContent = invalid
-          ? 'Enter a different operating callsign using letters, digits and slashes, or deselect this mapping.'
-          : '';
-        return !invalid;
-      };
-      input.validateMerge = validate;
-      validate();
-      const update = () => {
-        if (busy) {
-          return;
-        }
-        const target = input.value.trim().toUpperCase();
-        if (check.checked) {
-          mergeMappings.set(station, target);
-        } else {
-          mergeMappings.delete(station);
-        }
-        validate();
-        invalidateMerge();
-      };
-      check.addEventListener('change', update);
-      input.addEventListener('input', update);
-      row.append(label, targetLabel, input, error);
-      return row;
-    })
-  );
+  getElement('mergeEmpty').hidden = stations.length > 0;
+  getElement('mergeRows').replaceChildren(...stations.map(createMergeRow));
 }
 getElement('mergeEnabled').addEventListener('change', () => {
-  if (busy) {
+  if (isBusy) {
     return;
   }
   renderMergeOptions();
-  invalidateMerge();
+  invalidateExports();
 });
 renderMergeOptions();
+
 function validMergeTarget(source, target) {
   return validCallsign(target) && target !== source;
 }
 
-function selectedContacts() {
+// Validate the date control before returning contacts; invalid input also updates its error message.
+function readDateSelection() {
   try {
     if (getElement('startDate').validity?.badInput) {
       throw new Error('Enter a complete valid date or clear the date field.');
@@ -310,13 +317,13 @@ function selectedContacts() {
   }
 }
 getElement('startDate').addEventListener('change', () => {
-  if (busy) {
+  if (isBusy) {
     return;
   }
   getElement('results').hidden = true;
   getElement('empty').hidden = false;
   try {
-    const selection = selectedContacts();
+    const selection = readDateSelection();
     getElement('startDate').setAttribute('aria-invalid', 'false');
     getElement('status').textContent =
       `${selection.qsos.length} valid QSOs in date selection. ` +
@@ -329,71 +336,75 @@ getElement('startDate').addEventListener('change', () => {
     getElement('status').textContent = error.message;
   }
 });
+// Preserve first-seen order and request each own or worked summit only once.
+function getSummitReferences(qsos) {
+  return [...new Set(qsos.flatMap((qso) => [qso.summit, qso.other]).filter(Boolean))];
+}
+
+function createSummitRow(ref, index, ownSummitRefs) {
+  const summitRow = document.createElement('label');
+  summitRow.className = 'summit';
+  const summitLabel = document.createElement('span');
+  summitLabel.id = `locator-label-${index}`;
+  const isRequired = ownSummitRefs.has(ref);
+  summitLabel.textContent =
+    ref +
+    ` · ${isRequired ? 'own summit — required' : 'worked summit — optional'}` +
+    (summits.get(ref)?.name ? ` · ${summits.get(ref).name}` : '');
+  const locatorInput = document.createElement('input');
+  locatorInput.placeholder = 'Locator';
+  locatorInput.value = summits.get(ref)?.locator || '';
+  locatorInput.setAttribute('aria-labelledby', summitLabel.id);
+  locatorInput.required = isRequired;
+  locatorInput.setAttribute('aria-required', String(isRequired));
+  locatorInput.pattern = '[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?';
+  const validationMessage = document.createElement('span');
+  validationMessage.id = `locator-error-${index}`;
+  validationMessage.className = 'locator-error';
+  locatorInput.setAttribute('aria-describedby', validationMessage.id);
+  function validateLocator() {
+    const value = locatorInput.value.trim();
+    const isInvalid = value ? !validLocator(value) : isRequired;
+    locatorInput.setAttribute('aria-invalid', String(isInvalid));
+    validationMessage.textContent = isInvalid
+      ? value
+        ? 'Invalid locator. Use a Maidenhead locator such as IO81XW.'
+        : 'Enter a Maidenhead locator, such as IO81XW.'
+      : ' ';
+    validationMessage.hidden = !isInvalid;
+  }
+  validateLocator();
+  locatorInput.addEventListener('input', () => {
+    summits.set(ref, { locator: locatorInput.value.trim().toUpperCase() });
+    validateLocator();
+    getElement('results').hidden = true;
+    getElement('empty').hidden = false;
+    getElement('resultBadge').textContent = 'RECONVERT TO UPDATE';
+  });
+  const locatorField = document.createElement('span');
+  locatorField.className = 'locator-field';
+  locatorField.append(locatorInput, validationMessage);
+  summitRow.append(summitLabel, locatorField);
+  return summitRow;
+}
+
 function renderSummits() {
   if (getElement('startDate').getAttribute('aria-invalid') === 'true') {
     getElement('locators').hidden = true;
     return;
   }
-  const refs = [
-    ...new Set(
-      selectedContacts()
-        .qsos.flatMap((qso) => [qso.summit, qso.other])
-        .filter(Boolean)
-    )
-  ].filter((ref) => !getElement('enrich').checked || failedLookups.has(ref));
-  getElement('locators').hidden = !refs.length;
+  const { qsos } = readDateSelection();
+  const ownSummitRefs = new Set(qsos.map((qso) => qso.summit).filter(Boolean));
+  const summitRefs = getSummitReferences(qsos).filter(
+    (ref) => !getElement('enrich').checked || failedLookups.has(ref)
+  );
+  getElement('locators').hidden = !summitRefs.length;
   getElement('summitRows').replaceChildren(
-    ...refs.map((ref, index) => {
-      const row = document.createElement('label');
-      row.className = 'summit';
-      const text = document.createElement('span');
-      text.id = `locator-label-${index}`;
-      const required = selectedContacts().qsos.some((qso) => qso.summit === ref);
-      text.textContent =
-        ref +
-        ` · ${required ? 'own summit — required' : 'worked summit — optional'}` +
-        (summits.get(ref)?.name ? ` · ${summits.get(ref).name}` : '');
-      const input = document.createElement('input');
-      input.placeholder = 'Locator';
-      input.value = summits.get(ref)?.locator || '';
-      input.setAttribute('aria-labelledby', text.id);
-      input.required = required;
-      input.setAttribute('aria-required', String(required));
-      input.pattern = '[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2}([0-9]{2})?)?';
-      const error = document.createElement('span');
-      error.id = `locator-error-${index}`;
-      error.className = 'locator-error';
-      input.setAttribute('aria-describedby', error.id);
-      function validate() {
-        const value = input.value.trim();
-        const required = selectedContacts().qsos.some((qso) => qso.summit === ref);
-        const invalid = value ? !validLocator(value) : required;
-        input.setAttribute('aria-invalid', String(invalid));
-        error.textContent = invalid
-          ? value
-            ? 'Invalid locator. Use a Maidenhead locator such as IO81XW.'
-            : 'Enter a Maidenhead locator, such as IO81XW.'
-          : ' ';
-        error.hidden = !invalid;
-      }
-      validate();
-      input.addEventListener('input', () => {
-        summits.set(ref, { locator: input.value.trim().toUpperCase() });
-        validate();
-        getElement('results').hidden = true;
-        getElement('empty').hidden = false;
-        getElement('resultBadge').textContent = 'RECONVERT TO UPDATE';
-      });
-      const field = document.createElement('span');
-      field.className = 'locator-field';
-      field.append(input, error);
-      row.append(text, field);
-      return row;
-    })
+    ...summitRefs.map((ref, index) => createSummitRow(ref, index, ownSummitRefs))
   );
 }
 getElement('enrich').addEventListener('change', () => {
-  if (!busy) {
+  if (!isBusy) {
     renderSummits();
   }
 });
@@ -402,7 +413,7 @@ getElement('file').addEventListener('change', async (event) => {
 });
 getElement('drop').addEventListener('dragover', (event) => {
   event.preventDefault();
-  if (!busy) {
+  if (!isBusy) {
     getElement('drop').classList.add('drag');
   }
 });
@@ -412,23 +423,24 @@ getElement('drop').addEventListener('drop', async (event) => {
   getElement('drop').classList.remove('drag');
   await readFiles(event.dataTransfer.files);
 });
+
 function createDownloadRow(file) {
-  const div = document.createElement('div');
-  div.className = 'download';
-  const text = document.createElement('div');
+  const downloadRow = document.createElement('div');
+  downloadRow.className = 'download';
+  const summary = document.createElement('div');
   const title = document.createElement('strong');
   title.textContent = file.station;
-  const small = document.createElement('small');
+  const details = document.createElement('small');
   const exportLabel = file.merged ? 'Additional merged export' : 'Original export';
-  small.textContent = `${file.count} QSOs · ${exportLabel} · .adi`;
-  text.append(title, small);
-  const button = document.createElement('button');
-  button.textContent = 'Download ↓';
-  button.setAttribute(
+  details.textContent = `${file.count} QSOs · ${exportLabel} · .adi`;
+  summary.append(title, details);
+  const downloadButton = document.createElement('button');
+  downloadButton.textContent = 'Download ↓';
+  downloadButton.setAttribute(
     'aria-label',
     `Download ${file.merged ? 'merged ADIF' : 'ADIF'} for ${file.station}`
   );
-  button.onclick = () => {
+  downloadButton.onclick = () => {
     const url = URL.createObjectURL(new Blob([file.text], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
@@ -436,8 +448,102 @@ function createDownloadRow(file) {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  div.append(text, button);
-  return div;
+  downloadRow.append(summary, downloadButton);
+  return downloadRow;
+}
+
+async function fetchSummitLocators(qsos, revision, warnings) {
+  const summitRefs = getSummitReferences(qsos);
+  for (let index = 0; index < summitRefs.length; index++) {
+    const summitRef = summitRefs[index];
+    if (validLocator(summits.get(summitRef)?.locator || '') && !summits.get(summitRef)?.automatic) {
+      failedLookups.delete(summitRef);
+      continue;
+    }
+    getElement('status').textContent =
+      `Looking up ${summitRef} (${index + 1}/${summitRefs.length})…`;
+    try {
+      const data = await cachedSummitLookup(summitRef);
+      if (revision !== logRevision) {
+        return;
+      }
+      summits.set(summitRef, { ...data, automatic: true });
+      failedLookups.delete(summitRef);
+    } catch (error) {
+      summits.delete(summitRef);
+      failedLookups.add(summitRef);
+      warnings.push(`${summitRef}: lookup failed (${error.message}). Enter its locator manually.`);
+    }
+  }
+}
+
+function getExportBadge(hasFiles, excludedCount, filteredCount) {
+  if (!hasFiles) {
+    return 'NO CONTACTS EXPORTED';
+  }
+  if (excludedCount) {
+    return 'PARTIAL EXPORT — CONTACTS EXCLUDED';
+  }
+  return filteredCount ? 'ALL SELECTED CONTACTS EXPORTED' : 'ALL CONTACTS EXPORTED';
+}
+
+function renderConversionResults({
+  qsos,
+  filtered,
+  invalidRowCount,
+  warnings,
+  output,
+  mergedFiles
+}) {
+  const { files, skipped, warnings: exportWarnings } = output;
+  const allWarnings = [...warnings, ...exportWarnings];
+  renderWarnings([...allWarnings, ...skipped]);
+  getElement('empty').hidden = files.length > 0;
+  getElement('results').hidden = !files.length;
+  const excludedCount = invalidRowCount + skipped.length;
+  getElement('resultBadge').textContent = getExportBadge(files.length > 0, excludedCount, filtered);
+  const exportedCount = files.reduce((total, file) => total + file.count, 0);
+  getElement('stats').replaceChildren(
+    ...[
+      [exportedCount, 'QSOs exported'],
+      [files.length, 'Original ADIF files'],
+      [filtered, 'QSOs excluded by date'],
+      [qsos.length - exportedCount + invalidRowCount, 'Rows / QSOs excluded due to errors']
+    ].map(([value, label]) => {
+      const div = document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = value;
+      const span = document.createElement('span');
+      span.textContent = label;
+      div.append(strong, span);
+      return div;
+    })
+  );
+  const downloadFiles = [...files, ...mergedFiles];
+  getElement('mergeDownloadWarning').hidden = !mergedFiles.length;
+  getElement('mergeDownloadWarning').textContent =
+    `${mergedFiles.length} additional merged files. These repeat contacts in the original files. ` +
+    'Import one set per destination to avoid duplicates.';
+  getElement('downloads').replaceChildren(...downloadFiles.map(createDownloadRow));
+  getElement('preview').textContent = downloadFiles.map((file) => file.text).join('\n');
+  const warningCount = allWarnings.length + skipped.length;
+  let exportSummary;
+  if (excludedCount) {
+    exportSummary =
+      `${excludedCount} rows / QSOs excluded: this is a partial export. ` +
+      'Correct the CSV rows or enter missing summit locators and convert again.';
+  } else {
+    exportSummary = filtered ? 'All selected contacts exported.' : 'All contacts exported.';
+  }
+  const mergedSummary = mergedFiles.length
+    ? ` ${mergedFiles.length} additional merged files available. ` +
+      'These repeat contacts in the original files; import one set per destination to avoid duplicates.'
+    : '';
+  getElement('status').textContent = files.length
+    ? `${exportedCount} QSOs exported. ${filtered} QSOs excluded by date. ${exportSummary} ` +
+      `${warningCount} warnings; review details before importing.${mergedSummary}`
+    : `No QSOs exported. ${warningCount} warnings; review warning details below. ` +
+      'Add valid summit locators and try again.';
 }
 
 async function convertLog() {
@@ -453,11 +559,12 @@ async function convertLog() {
   getElement('results').hidden = true;
   getElement('status').textContent = 'Preparing summit data…';
   try {
-    const { qsos, filtered } = selectedContacts();
+    const { qsos, filtered } = readDateSelection();
     if (getElement('mergeEnabled').checked) {
-      const invalidInputs = [...document.querySelectorAll('#mergeRows input')].filter(
-        (input) => input.validateMerge && !input.validateMerge()
-      );
+      const invalidInputs = [...document.querySelectorAll('#mergeRows input')].filter((input) => {
+        const validate = mergeValidators.get(input);
+        return validate && !validate();
+      });
       if (invalidInputs.length) {
         getElement('mergeOptions').open = true;
         errorFocus = invalidInputs[0];
@@ -472,94 +579,28 @@ async function convertLog() {
       getElement('status').textContent =
         `No valid QSOs match the date selection. ${filtered} QSOs excluded by date. ` +
         `Clear or change the date to include contacts. ${logSnapshot.warnings.length} invalid rows; review warnings.`;
-      warn(warnings);
+      renderWarnings(warnings);
       return;
     }
     if (getElement('enrich').checked) {
-      const refs = [...new Set(qsos.flatMap((qso) => [qso.summit, qso.other]).filter(Boolean))];
-      for (let i = 0; i < refs.length; i++) {
-        const ref = refs[i];
-        if (validLocator(summits.get(ref)?.locator || '') && !summits.get(ref)?.automatic) {
-          failedLookups.delete(ref);
-          continue;
-        }
-        getElement('status').textContent = `Looking up ${ref} (${i + 1}/${refs.length})…`;
-        try {
-          const data = await cachedSummitLookup(ref);
-          if (revision !== logRevision) {
-            return;
-          }
-          summits.set(ref, { ...data, automatic: true });
-          failedLookups.delete(ref);
-        } catch (error) {
-          summits.delete(ref);
-          failedLookups.add(ref);
-          warnings.push(`${ref}: lookup failed (${error.message}). Enter its locator manually.`);
-        }
-      }
+      await fetchSummitLocators(qsos, revision, warnings);
     }
     if (revision !== logRevision) {
       return;
     }
     renderSummits();
-    const { files, skipped, warnings: exportWarnings } = makeOutputs(qsos, summits);
-    warnings.push(...exportWarnings);
-    warn([...warnings, ...skipped]);
-    getElement('empty').hidden = !!files.length;
-    getElement('results').hidden = !files.length;
-    getElement('resultBadge').textContent = files.length
-      ? logSnapshot.warnings.length || skipped.length
-        ? 'PARTIAL EXPORT — CONTACTS EXCLUDED'
-        : filtered
-          ? 'ALL SELECTED CONTACTS EXPORTED'
-          : 'ALL CONTACTS EXPORTED'
-      : 'NO CONTACTS EXPORTED';
-    const count = files.reduce((total, file) => total + file.count, 0);
-    getElement('stats').replaceChildren(
-      ...[
-        [count, 'QSOs exported'],
-        [files.length, 'Original ADIF files'],
-        [filtered, 'QSOs excluded by date'],
-        [qsos.length - count + logSnapshot.warnings.length, 'Rows / QSOs excluded due to errors']
-      ].map(([value, label]) => {
-        const div = document.createElement('div');
-        const strong = document.createElement('strong');
-        strong.textContent = value;
-        const span = document.createElement('span');
-        span.textContent = label;
-        div.append(strong, span);
-        return div;
-      })
-    );
+    const output = makeOutputs(qsos, summits);
     const mergedFiles = getElement('mergeEnabled').checked
       ? makeMergedOutputs(qsos, summits, mergeMappings)
       : [];
-    const downloadFiles = [...files, ...mergedFiles];
-    getElement('mergeDownloadWarning').hidden = !mergedFiles.length;
-    getElement('mergeDownloadWarning').textContent =
-      `${mergedFiles.length} additional merged files. These repeat contacts in the original files. ` +
-      'Import one set per destination to avoid duplicates.';
-    getElement('downloads').replaceChildren(...downloadFiles.map(createDownloadRow));
-    getElement('preview').textContent = downloadFiles.map((file) => file.text).join('\n');
-    const excludedCount = logSnapshot.warnings.length + skipped.length;
-    const warningCount = warnings.length + skipped.length;
-    let exportSummary;
-    if (excludedCount) {
-      exportSummary =
-        `${excludedCount} rows / QSOs excluded: this is a partial export. ` +
-        'Correct the CSV rows or enter missing summit locators and convert again.';
-    } else {
-      exportSummary = filtered ? 'All selected contacts exported.' : 'All contacts exported.';
-    }
-    const mergedSummary = mergedFiles.length
-      ? ` ${mergedFiles.length} additional merged files available. ` +
-        'These repeat contacts in the original files; import one set per destination to avoid duplicates.'
-      : '';
-    getElement('status').textContent = files.length
-      ? `${count} QSOs exported. ${filtered} QSOs excluded by date. ${exportSummary} ` +
-        `${warningCount} warnings; review details before importing.${mergedSummary}`
-      : `No QSOs exported. ${warningCount} warnings; review warning details below. ` +
-        'Add valid summit locators and try again.';
+    renderConversionResults({
+      qsos,
+      filtered,
+      invalidRowCount: logSnapshot.warnings.length,
+      warnings,
+      output,
+      mergedFiles
+    });
   } catch (error) {
     getElement('status').textContent = error.message;
     if (getElement('startDate').getAttribute('aria-invalid') === 'true') {
@@ -573,15 +614,31 @@ async function convertLog() {
 }
 getElement('convert').onclick = convertLog;
 
+// Preference persistence is best-effort; blocked storage must not prevent normal use.
+function readStoredPreference(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredPreference(key, value) {
+  try {
+    if (value === null) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, value);
+    }
+  } catch {
+    // The current preference still applies for this page session.
+  }
+}
+
 // Display preferences remain independent of conversion and each other.
 const themeToggle = getElement('themeToggle');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
-let chosenTheme = null;
-try {
-  chosenTheme = localStorage.getItem('sotatoadif-theme');
-} catch {
-  // Display preferences are optional when browser storage is unavailable.
-}
+let chosenTheme = readStoredPreference('sotatoadif-theme');
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   themeToggle.setAttribute('aria-pressed', String(theme === 'dark'));
@@ -592,11 +649,7 @@ applyTheme(document.documentElement.dataset.theme || 'light');
 themeToggle.addEventListener('click', () => {
   chosenTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   applyTheme(chosenTheme);
-  try {
-    localStorage.setItem('sotatoadif-theme', chosenTheme);
-  } catch {
-    // Display preferences are optional when browser storage is unavailable.
-  }
+  writeStoredPreference('sotatoadif-theme', chosenTheme);
 });
 systemTheme.addEventListener('change', (event) => {
   if (chosenTheme !== 'dark' && chosenTheme !== 'light') {
@@ -613,11 +666,7 @@ applyContrast(document.documentElement.dataset.contrast === 'high');
 contrastToggle.addEventListener('click', () => {
   const high = document.documentElement.dataset.contrast !== 'high';
   applyContrast(high);
-  try {
-    localStorage.setItem('sotatoadif-contrast', high ? 'high' : 'normal');
-  } catch {
-    // Display preferences are optional when browser storage is unavailable.
-  }
+  writeStoredPreference('sotatoadif-contrast', high ? 'high' : 'normal');
 });
 
 const readingDefaults = {
@@ -629,7 +678,7 @@ const readingDefaults = {
 };
 let reading = { ...readingDefaults };
 try {
-  const saved = JSON.parse(localStorage.getItem('sotatoadif-reading') || 'null');
+  const saved = JSON.parse(readStoredPreference('sotatoadif-reading') || 'null');
   if (saved) {
     if (['100', '150', '200'].includes(saved.size)) {
       reading.size = saved.size;
@@ -646,17 +695,21 @@ try {
     reading.custom = saved.custom === true;
   }
 } catch {
-  // Display preferences are optional when browser storage is unavailable.
+  // Ignore malformed saved JSON and retain the reading defaults.
 }
+
 function contrastRatio(text, background) {
-  const luminance = (hex) => {
+  const relativeLuminance = (hex) => {
+    // Convert sRGB channels to linear light before applying luminance weights.
     const channels = [1, 3, 5]
-      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-      .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      .map((index) => parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map((channel) =>
+        channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+      );
     return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   };
-  const textLuminance = luminance(text);
-  const backgroundLuminance = luminance(background);
+  const textLuminance = relativeLuminance(text);
+  const backgroundLuminance = relativeLuminance(background);
   return (
     (Math.max(textLuminance, backgroundLuminance) + 0.05) /
     (Math.min(textLuminance, backgroundLuminance) + 0.05)
@@ -694,20 +747,12 @@ for (const [id, key] of [
   getElement(id).addEventListener('change', () => {
     reading[key] = key === 'custom' ? getElement(id).checked : getElement(id).value;
     applyReading();
-    try {
-      localStorage.setItem('sotatoadif-reading', JSON.stringify(reading));
-    } catch {
-      // Display preferences are optional when browser storage is unavailable.
-    }
+    writeStoredPreference('sotatoadif-reading', JSON.stringify(reading));
   });
 }
 getElement('readingReset').addEventListener('click', () => {
   reading = { ...readingDefaults };
   applyReading();
-  try {
-    localStorage.removeItem('sotatoadif-reading');
-  } catch {
-    // Display preferences are optional when browser storage is unavailable.
-  }
+  writeStoredPreference('sotatoadif-reading', null);
 });
 applyReading();
