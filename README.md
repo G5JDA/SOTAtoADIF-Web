@@ -4,7 +4,7 @@ Convert Summits on the Air (SOTA) database CSV exports into ADIF files for your 
 
 **[Use the hosted app at sotatoadif.g5jda.uk](https://sotatoadif.g5jda.uk/)**
 
-SOTAtoADIF Web is a dependency-free browser edition based on the older [SOTAtoADIF Python project](https://github.com/G5JDA/SOTAtoADIF) by Jack G5JDA. It brings the original CSV conversion and summit-enrichment workflow to a web interface and adds support for combining activator, summit-to-summit (S2S), and chaser logs.
+SOTAtoADIF Web is a dependency-free browser edition based on the older [SOTAtoADIF Python project](https://github.com/G5JDA/SOTAtoADIF) by Jack G5JDA. It brings the original CSV conversion and summit-enrichment workflow to a web interface and adds support for combining activator, summit-to-summit (S2S), and chaser logs. This browser edition no longer uses the SOTA API: it downloads the public SOTA summit CSV, calculates Maidenhead locators locally, and saves compact summit data on your device for reuse.
 
 ## Features
 
