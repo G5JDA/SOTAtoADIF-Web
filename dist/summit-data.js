@@ -3,136 +3,274 @@ import { parseCSV, validSummitRef, validLocator } from './converter.js';
 
 export const SUMMIT_CSV_URL = 'https://storage.sota.org.uk/summitslist.csv';
 const STORAGE_VERSION = 1;
+const DATABASE_NAME = 'sotatoadif-summits';
+const DATASET_STORE = 'datasets';
+const CURRENT_DATASET_KEY = 'current';
+const DOWNLOAD_TIMEOUT_MS = 120000;
+const REQUIRED_COLUMNS = ['SummitCode', 'SummitName', 'Longitude', 'Latitude'];
+const DATASET_DATE_PATTERN = /^SOTA Summits List \(Date=(\d{2}\/\d{2}\/\d{4})\)$/;
+const SIX_CHARACTER_LOCATOR_PATTERN = /^[A-R]{2}\d{2}[A-X]{2}$/;
 
-// Longitude comes first in each pair: field letters, square digits, subsquare letters.
+// Each locator pair puts longitude first, then latitude.
 export function maidenhead(latitude, longitude) {
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
-      latitude < -90 || latitude >= 90 || longitude < -180 || longitude >= 180) {
+  const validLatitude = Number.isFinite(latitude) && latitude >= -90 && latitude < 90;
+  const validLongitude = Number.isFinite(longitude) && longitude >= -180 && longitude < 180;
+  if (!validLatitude || !validLongitude) {
     throw new Error('Invalid summit coordinates');
   }
+
+  // Shift the origin to the southwest corner of the world.
   let east = longitude + 180;
   let north = latitude + 90;
+
+  // Fields span 20 degrees of longitude and 10 degrees of latitude.
   const fieldColumn = Math.floor(east / 20);
   const fieldRow = Math.floor(north / 10);
   east -= fieldColumn * 20;
   north -= fieldRow * 10;
+
+  // Each field contains ten squares along each axis.
   const squareColumn = Math.floor(east / 2);
   const squareRow = Math.floor(north);
   east -= squareColumn * 2;
   north -= squareRow;
-  const letter = index => String.fromCharCode(65 + index);
-  return letter(fieldColumn) + letter(fieldRow) + squareColumn + squareRow +
-    letter(Math.floor(east * 12)) + letter(Math.floor(north * 24));
+
+  // Each square contains 24 subsquares along each axis.
+  const subsquareColumn = Math.floor(east * 12);
+  const subsquareRow = Math.floor(north * 24);
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return letters[fieldColumn] + letters[fieldRow] +
+    String(squareColumn) + String(squareRow) +
+    letters[subsquareColumn] + letters[subsquareRow];
 }
 
-// Keep retired summits: their coordinates are needed when converting historical logs.
+// The first CSV row describes the dataset; the second names its columns.
+function readDatasetHeader(rows) {
+  const introductoryText = rows.shift()?.[0] || '';
+  const dateMatch = DATASET_DATE_PATTERN.exec(introductoryText);
+  if (!dateMatch) {
+    throw new Error('Missing summit dataset date');
+  }
+
+  const header = rows.shift() || [];
+  const columnIndexes = REQUIRED_COLUMNS.map(name => header.indexOf(name));
+  if (columnIndexes.some(index => index < 0)) {
+    throw new Error('Missing summit CSV columns');
+  }
+  return { date: dateMatch[1], columnCount: header.length, columnIndexes };
+}
+
+// Keep retired references for historical logs. Compact entries are [name, locator].
 export function preprocessSummits(text) {
   const rows = parseCSV(text);
-  const date = /^SOTA Summits List \(Date=(\d{2}\/\d{2}\/\d{4})\)$/.exec(rows.shift()?.[0] || '');
-  if (!date) throw new Error('Missing summit dataset date');
-  const header = rows.shift() || [];
-  const columns = ['SummitCode', 'SummitName', 'Longitude', 'Latitude'].map(name => header.indexOf(name));
-  if (columns.some(index => index < 0)) throw new Error('Missing summit CSV columns');
+  const { date, columnCount, columnIndexes } = readDatasetHeader(rows);
   const summits = Object.create(null);
+
   for (const row of rows) {
-    if (row.every(value => !value.trim())) continue;
-    const [ref, name, longitude, latitude] = columns.map(index => row[index]?.trim());
-    if (row.length !== header.length || !validSummitRef(ref || '') || !name ||
-        !longitude || !latitude || Object.hasOwn(summits, ref.toUpperCase())) {
+    if (row.every(value => !value.trim())) {
+      continue;
+    }
+    const [reference, name, longitude, latitude] = columnIndexes.map(index => row[index]?.trim());
+    const hasRequiredValues = validSummitRef(reference || '') && name && longitude && latitude;
+    const duplicateReference = Object.hasOwn(summits, (reference || '').toUpperCase());
+    if (row.length !== columnCount || !hasRequiredValues || duplicateReference) {
       throw new Error('Invalid or duplicate summit row');
     }
-    summits[ref.toUpperCase()] = [name, maidenhead(Number(latitude), Number(longitude))];
+
+    const locator = maidenhead(Number(latitude), Number(longitude));
+    summits[reference.toUpperCase()] = [name, locator];
   }
-  if (!Object.keys(summits).length) throw new Error('Empty summit dataset');
-  return { version: STORAGE_VERSION, date: date[1], summits };
+  if (Object.keys(summits).length === 0) {
+    throw new Error('Empty summit dataset');
+  }
+  return { version: STORAGE_VERSION, date, summits };
 }
 
-function validateSaved(data) {
-  if (data?.version !== STORAGE_VERSION || typeof data.date !== 'string' ||
-      typeof data.lastModified !== 'string' || !data.summits || typeof data.summits !== 'object') return false;
-  const entries = Object.entries(data.summits);
-  return entries.length > 0 && entries.every(([ref, value]) =>
-    validSummitRef(ref) && Array.isArray(value) && value.length === 2 &&
-    typeof value[0] === 'string' && /^[A-R]{2}\d{2}[A-X]{2}$/.test(value[1]) && validLocator(value[1]));
+function isValidSavedEntry([reference, entry]) {
+  return validSummitRef(reference) &&
+    Array.isArray(entry) && entry.length === 2 &&
+    typeof entry[0] === 'string' &&
+    SIX_CHARACTER_LOCATOR_PATTERN.test(entry[1]) && validLocator(entry[1]);
+}
+
+// Ignore incompatible or corrupt saved data and download a fresh dataset instead.
+function isValidSavedDataset(dataset) {
+  if (dataset?.version !== STORAGE_VERSION ||
+      typeof dataset.date !== 'string' ||
+      typeof dataset.lastModified !== 'string' ||
+      !dataset.summits || typeof dataset.summits !== 'object') {
+    return false;
+  }
+  const entries = Object.entries(dataset.summits);
+  return entries.length > 0 && entries.every(isValidSavedEntry);
 }
 
 // Store one compact JSON document atomically; never persist uploaded log content.
 export function createDatasetStorage(indexedDB = globalThis.indexedDB) {
-  let connection;
-  function open() {
-    if (!connection) connection = new Promise((resolve, reject) => {
-      if (!indexedDB) return reject(new Error('Browser storage unavailable'));
-      const request = indexedDB.open('sotatoadif-summits', 1);
-      request.onupgradeneeded = () => request.result.createObjectStore('datasets');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-      request.onblocked = () => reject(new Error('Browser storage blocked'));
-    });
-    return connection;
+  let connectionPromise;
+
+  function openDatabase() {
+    if (!connectionPromise) {
+      connectionPromise = new Promise((resolve, reject) => {
+        if (!indexedDB) {
+          reject(new Error('Browser storage unavailable'));
+          return;
+        }
+        const request = indexedDB.open(DATABASE_NAME, STORAGE_VERSION);
+        request.onupgradeneeded = () => request.result.createObjectStore(DATASET_STORE);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => reject(new Error('Browser storage blocked'));
+      });
+    }
+    return connectionPromise;
   }
-  async function transact(mode, value) {
-    const database = await open();
+
+  async function runTransaction(mode, dataset) {
+    const database = await openDatabase();
     return new Promise((resolve, reject) => {
-      const transaction = database.transaction('datasets', mode);
-      const store = transaction.objectStore('datasets');
-      const request = mode === 'readonly' ? store.get('current') : store.put(JSON.stringify(value), 'current');
+      const transaction = database.transaction(DATASET_STORE, mode);
+      const store = transaction.objectStore(DATASET_STORE);
+      const isReading = mode === 'readonly';
+      const request = isReading
+        ? store.get(CURRENT_DATASET_KEY)
+        : store.put(JSON.stringify(dataset), CURRENT_DATASET_KEY);
+
+      // Resolve writes only when committed, rather than when the individual request succeeds.
       transaction.oncomplete = () => {
-        try { resolve(mode === 'readonly' && request.result ? JSON.parse(request.result) : undefined); }
-        catch (error) { reject(error); }
+        try {
+          const savedDataset = isReading && request.result
+            ? JSON.parse(request.result)
+            : undefined;
+          resolve(savedDataset);
+        } catch (error) {
+          reject(error);
+        }
       };
       transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error || new Error('Storage transaction aborted'));
+      transaction.onabort = () => {
+        reject(transaction.error || new Error('Storage transaction aborted'));
+      };
     });
   }
-  return { read: () => transact('readonly'), write: data => transact('readwrite', data) };
+
+  return {
+    read: () => runTransaction('readonly'),
+    write: dataset => runTransaction('readwrite', dataset)
+  };
 }
 
-export function createSummitDataset({ fetcher = (...args) => globalThis.fetch(...args), storage = createDatasetStorage(), onStatus = () => {} } = {}) {
-  let current;
-  let initialization;
-  async function refresh() {
-    onStatus(current ? `Checking summit data (${current.date}) for updates…` : 'Downloading summit data (about 25 MB)…');
+// Inject dependencies for deterministic tests without contacting SOTA or browser storage.
+export function createSummitDataset({
+  fetcher = (...args) => globalThis.fetch(...args),
+  storage = createDatasetStorage(),
+  onStatus = () => {}
+} = {}) {
+  let currentDataset;
+  let initializationPromise;
+
+  async function loadSavedDataset() {
     try {
-      const headers = current?.lastModified ? { 'If-Modified-Since': current.lastModified } : {};
-      const response = await fetcher(SUMMIT_CSV_URL, {
-        headers, credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(120000)
-      });
-      if (response.status !== 304 || !current) {
-        if (!response.ok) throw new Error('Summit download failed');
-        const text = await response.text();
-        onStatus('Preparing summit names and locators…');
-        // Yield so the preparation status can paint before parsing the full CSV.
-        await new Promise(resolve => setTimeout(resolve, 0));
-        const replacement = preprocessSummits(text);
-        replacement.lastModified = response.headers.get('Last-Modified') || '';
-        current = replacement;
-        try { await storage.write(replacement); }
-        catch { onStatus(`Summit data (${current.date}) ready; could not save it on this device.`); return; }
+      const savedDataset = await storage.read();
+      if (isValidSavedDataset(savedDataset)) {
+        currentDataset = savedDataset;
       }
-      onStatus(`Summit data (${current.date}) ready.`);
-    } catch (error) {
-      onStatus(current ? `Using saved summit data (${current.date}); update unavailable.` :
-        'Summit download unavailable. Enter locators manually or retry conversion.');
-      if (!current) throw error;
+    } catch {
+      // Storage is optional: a fresh download can still be used in memory.
     }
   }
-  async function prepare() {
-    if (!initialization) initialization = (async () => {
-      try { const saved = await storage.read(); if (validateSaved(saved)) current = saved; } catch { /* Use memory if storage is unavailable or corrupt. */ }
-      const update = refresh();
-      // Existing data is usable immediately while the update runs in the background.
-      if (current) { update.catch(() => {}); return; }
-      await update;
-    })().catch(error => { initialization = undefined; throw error; });
-    await initialization;
-    return current;
+
+  async function saveDataset(dataset) {
+    try {
+      await storage.write(dataset);
+      return true;
+    } catch {
+      onStatus(`Summit data (${dataset.date}) ready; could not save it on this device.`);
+      return false;
+    }
   }
+
+  async function prepareReplacement(response) {
+    const text = await response.text();
+    onStatus('Preparing summit names and locators…');
+    // Allow the browser to paint the status before parsing the full CSV.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const dataset = preprocessSummits(text);
+    dataset.lastModified = response.headers.get('Last-Modified') || '';
+    return dataset;
+  }
+
+  async function refreshDataset() {
+    const checkingMessage = currentDataset
+      ? `Checking summit data (${currentDataset.date}) for updates…`
+      : 'Downloading summit data (about 25 MB)…';
+    onStatus(checkingMessage);
+
+    try {
+      const headers = currentDataset?.lastModified
+        ? { 'If-Modified-Since': currentDataset.lastModified }
+        : {};
+      const response = await fetcher(SUMMIT_CSV_URL, {
+        headers,
+        credentials: 'omit',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)
+      });
+
+      const unchanged = response.status === 304 && currentDataset;
+      if (!unchanged) {
+        if (!response.ok) {
+          throw new Error('Summit download failed');
+        }
+        // Validate the entire replacement before changing the current snapshot.
+        currentDataset = await prepareReplacement(response);
+        const saved = await saveDataset(currentDataset);
+        if (!saved) {
+          return;
+        }
+      }
+      onStatus(`Summit data (${currentDataset.date}) ready.`);
+    } catch (error) {
+      if (currentDataset) {
+        onStatus(`Using saved summit data (${currentDataset.date}); update unavailable.`);
+      } else {
+        onStatus('Summit download unavailable. Enter locators manually or retry conversion.');
+        throw error;
+      }
+    }
+  }
+
+  async function initializeDataset() {
+    await loadSavedDataset();
+    const updatePromise = refreshDataset();
+    if (currentDataset) {
+      // Saved data is immediately usable while the update runs in the background.
+      updatePromise.catch(() => {});
+      return;
+    }
+    await updatePromise;
+  }
+
+  async function prepare() {
+    if (!initializationPromise) {
+      initializationPromise = initializeDataset().catch(error => {
+        // Permit another conversion attempt to retry a failed first download.
+        initializationPromise = undefined;
+        throw error;
+      });
+    }
+    await initializationPromise;
+    return currentDataset;
+  }
+
   return { prepare };
 }
 
 export const summitDataset = createSummitDataset({
   onStatus: message => {
     const status = globalThis.document?.getElementById('datasetStatus');
-    if (status) status.textContent = message;
+    if (status) {
+      status.textContent = message;
+    }
   }
 });
