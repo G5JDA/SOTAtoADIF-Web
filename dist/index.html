@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta
       name="description"
-      content="Convert SOTA activator, chaser and summit-to-summit CSV logs to ADIF in your browser. Enrich summit data and merge logs without uploading your contacts."
+      content="Convert SOTA activator, S2S and chaser CSV logs to ADIF locally in your browser."
     >
     <title>SOTAtoADIF | SOTA CSV to ADIF Converter</title>
     <link rel="canonical" href="https://sotatoadif.g5jda.uk/">
@@ -19,13 +19,13 @@
     <meta property="og:title" content="SOTAtoADIF | SOTA CSV to ADIF Converter">
     <meta
       property="og:description"
-      content="Convert SOTA activator, chaser and summit-to-summit CSV logs to ADIF in your browser. Enrich summit data and merge logs without uploading your contacts."
+      content="Convert SOTA activator, S2S and chaser CSV logs to ADIF locally in your browser."
     >
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="SOTAtoADIF | SOTA CSV to ADIF Converter">
     <meta
       name="twitter:description"
-      content="Convert SOTA activator, chaser and summit-to-summit CSV logs to ADIF in your browser. Enrich summit data and merge logs without uploading your contacts."
+      content="Convert SOTA activator, S2S and chaser CSV logs to ADIF locally in your browser."
     >
 
     <!-- Structured data for search engines. -->
@@ -35,7 +35,7 @@
         "@type": "WebApplication",
         "name": "SOTAtoADIF",
         "url": "https://sotatoadif.g5jda.uk/",
-        "description": "Convert SOTA activator, chaser and summit-to-summit CSV logs to ADIF in your browser. Enrich summit data and merge logs without uploading your contacts.",
+        "description": "Convert SOTA activator, S2S and chaser CSV logs to ADIF locally in your browser.",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Any",
         "browserRequirements": "Requires a modern web browser with JavaScript enabled.",
@@ -65,7 +65,8 @@
     </script>
     <script>
       try {
-        document.documentElement.dataset.contrast = localStorage.getItem('sotatoadif-contrast') === 'high' ? 'high' : 'normal';
+        document.documentElement.dataset.contrast =
+          localStorage.getItem('sotatoadif-contrast') === 'high' ? 'high' : 'normal';
       } catch {
         // Keep the default contrast when browser storage is unavailable.
       }
@@ -82,7 +83,13 @@
       </a>
       <div class="header-controls">
         <span class="badge">Browser-local processing</span>
-        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false">Dark mode</button>
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Dark mode"
+          aria-pressed="false"
+        >Dark mode</button>
         <button id="contrastToggle" class="theme-toggle" type="button" aria-pressed="false">High contrast</button>
       </div>
     </header>
@@ -264,7 +271,11 @@
             <div class="mountains">△</div>
             <h3>A clear path to your logbook</h3>
             <p>Your converted files and QSO preview<br>will appear here.</p>
-            <div class="features"><span>✓ Summit locators</span><span>✓ ADIF modes & bands</span><span>✓ One file per callsign</span></div>
+            <div class="features">
+              <span>✓ Summit locators</span>
+              <span>✓ ADIF modes & bands</span>
+              <span>✓ One file per callsign</span>
+            </div>
           </div>
           <p id="chaserSummary" role="status" hidden></p>
           <p id="s2sSummary" role="status" hidden></p>
@@ -294,7 +305,10 @@
           </details>
         </section>
       </div>
-      <div class="footnote"><span>⌁ Built for the summit-to-logbook journey</span><span>No uploads. No account. No installation.</span></div>
+      <div class="footnote">
+        <span>⌁ Built for the summit-to-logbook journey</span>
+        <span>No uploads. No account. No installation.</span>
+      </div>
       <details class="help">
         <summary>DATA mode compatibility</summary>
         <p>
@@ -327,7 +341,12 @@
       </details>
     </main>
 
-    <footer><span>SOTAtoADIF <span class="muted">/ Browser edition</span></span><span>Copyright 2026 Jack <a href="https://g5jda.uk">G5JDA</a>.</span><a href="LICENSE">AGPL-3.0-or-later</a><a href="https://github.com/G5JDA/SOTAtoADIF-Web">Source code ↗</a></footer>
+    <footer>
+      <span>SOTAtoADIF <span class="muted">/ Browser edition</span></span>
+      <span>Copyright 2026 Jack <a href="https://g5jda.uk">G5JDA</a>.</span>
+      <a href="LICENSE">AGPL-3.0-or-later</a>
+      <a href="https://github.com/G5JDA/SOTAtoADIF-Web">Source code ↗</a>
+    </footer>
     <script type="module" src="app.js"></script>
   </body>
 </html>

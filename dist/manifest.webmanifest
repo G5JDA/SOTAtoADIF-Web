@@ -2,7 +2,7 @@
   "id": "./",
   "name": "SOTAtoADIF",
   "short_name": "SOTAtoADIF",
-  "description": "Convert SOTA activator, chaser and summit-to-summit CSV logs to ADIF in your browser. Enrich summit data and merge logs without uploading your contacts.",
+  "description": "Convert SOTA activator, S2S and chaser CSV logs to ADIF locally in your browser.",
   "lang": "en",
   "start_url": "./",
   "scope": "./",
